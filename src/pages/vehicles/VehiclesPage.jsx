@@ -1,12 +1,779 @@
-const VehiclesPage = () => {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold">Gestión de Vehículos</h1>
-      <p className="text-gray-600 mt-2">
-        Aquí podrás registrar y administrar los vehículos del conjunto.
-      </p>
+/**
+ * VehiclesPage.jsx
+ * Gestión de vehículos del conjunto residencial.
+ * Ruta: /vehiculos  (admin, portero, vigilante, residente)
+ *
+ * Admin/portero/vigilante: ven todos, pueden crear/editar/eliminar
+ * Residente: solo ve sus vehículos
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+  getVehicles,
+  createVehicle,
+  updateVehicle,
+  deleteVehicle,
+} from '@/services/vehicleService';
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const TIPOS = [
+  { value: 'carro',     label: 'Carro',     icon: '🚗', needsPlate: true  },
+  { value: 'moto',      label: 'Moto',      icon: '🏍️', needsPlate: true  },
+  { value: 'bicicleta', label: 'Bicicleta', icon: '🚲', needsPlate: false },
+  { value: 'patineta',  label: 'Patineta',  icon: '🛴', needsPlate: false },
+  { value: 'otro',      label: 'Otro',      icon: '🚐', needsPlate: false },
+];
+
+const TIPO_MAP = Object.fromEntries(TIPOS.map((t) => [t.value, t]));
+
+const TIPO_COLORS = {
+  carro:     'bg-blue-50   text-blue-700   border-blue-200',
+  moto:      'bg-orange-50 text-orange-700 border-orange-200',
+  bicicleta: 'bg-green-50  text-green-700  border-green-200',
+  patineta:  'bg-purple-50 text-purple-700 border-purple-200',
+  otro:      'bg-slate-50  text-slate-600  border-slate-200',
+};
+
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+const useAuth = () => {
+  try {
+    const raw = localStorage.getItem('homeaccess-auth');
+    if (!raw) return {};
+    return JSON.parse(raw)?.state?.user || {};
+  } catch { return {}; }
+};
+
+// ─── Micro componentes ────────────────────────────────────────────────────────
+const Spinner = ({ size = 8 }) => (
+  <div
+    className={`w-${size} h-${size} border-2 border-slate-200 border-t-[#1a2035] rounded-full animate-spin`}
+  />
+);
+
+const Toast = ({ msg, type, onClose }) => (
+  <div
+    className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl
+      text-white text-sm font-medium shadow-2xl animate-in slide-in-from-bottom-4
+      ${type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}
+  >
+    <span className="text-base">{type === 'error' ? '✕' : '✓'}</span>
+    {msg}
+    <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100 text-lg leading-none">×</button>
+  </div>
+);
+
+const Modal = ({ title, subtitle, onClose, children, wide = false }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-[#1a2035]/50 backdrop-blur-sm" onClick={onClose} />
+    <div className={`relative z-10 bg-white rounded-2xl shadow-2xl w-full
+      ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto`}>
+      <div className="flex items-start justify-between p-6 pb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-[#1a2035]">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-xl
+            hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors text-xl"
+        >×</button>
+      </div>
+      <div className="px-6 pb-6">{children}</div>
     </div>
+  </div>
+);
+
+// ─── VehicleFormModal ─────────────────────────────────────────────────────────
+const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
+  const isEdit = Boolean(vehicle?._id);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+
+  const [form, setForm] = useState({
+    placa:          vehicle?.placa          || '',
+    tipo:           vehicle?.tipo           || 'carro',
+    marca:          vehicle?.marca          || '',
+    modelo:         vehicle?.modelo         || '',
+    color:          vehicle?.color          || '',
+    anio:           vehicle?.anio           || '',
+    unit_id:        vehicle?.unit_id?._id   || vehicle?.unit_id        || '',
+    propietario_id: vehicle?.propietario_id?._id || vehicle?.propietario_id || '',
+  });
+
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const tipoConfig  = TIPO_MAP[form.tipo] || TIPO_MAP.carro;
+  const needsPlate  = tipoConfig.needsPlate;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!form.tipo)           return setError('El tipo de vehículo es requerido');
+    if (!form.unit_id)        return setError('El ID de la unidad es requerido');
+    if (!form.propietario_id) return setError('El ID del propietario es requerido');
+    if (needsPlate && !form.placa) return setError(`La placa es obligatoria para ${tipoConfig.label}`);
+
+    setLoading(true);
+    try {
+      const payload = {
+        tipo:           form.tipo,
+        marca:          form.marca  || undefined,
+        modelo:         form.modelo || undefined,
+        color:          form.color  || undefined,
+        anio:           form.anio   ? Number(form.anio) : undefined,
+        unit_id:        form.unit_id,
+        propietario_id: form.propietario_id,
+        placa:          form.placa  || undefined,
+      };
+
+      isEdit
+        ? await updateVehicle(vehicle._id, payload)
+        : await createVehicle(payload);
+
+      onSaved(isEdit ? 'Vehículo actualizado' : 'Vehículo registrado exitosamente');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls = `w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm
+    text-slate-700 outline-none focus:border-[#1a2035] focus:ring-2 focus:ring-slate-100
+    transition-all placeholder:text-slate-300 bg-white`;
+  const labelCls = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5';
+
+  return (
+    <Modal
+      title={isEdit ? 'Editar vehículo' : 'Registrar vehículo'}
+      subtitle={isEdit ? `Modificando ${vehicle.placa || vehicle.tipo}` : 'Nuevo vehículo al conjunto'}
+      onClose={onClose}
+      wide
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {error && (
+          <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200
+            rounded-xl text-sm text-red-700">
+            <span className="mt-0.5 shrink-0">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Tipo de vehículo */}
+        <div>
+          <label className={labelCls}>Tipo de vehículo *</label>
+          <div className="grid grid-cols-5 gap-1.5">
+            {TIPOS.map(({ value, label, icon }) => (
+              <button
+                key={value} type="button"
+                onClick={() => set('tipo', value)}
+                className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border
+                  text-xs font-medium transition-all
+                  ${form.tipo === value
+                    ? 'bg-[#1a2035] border-[#1a2035] text-white shadow-md scale-105'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}
+              >
+                <span className="text-lg">{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          {!needsPlate && (
+            <p className="text-xs text-slate-400 mt-2">
+              ℹ️ {tipoConfig.label} no requiere placa en Colombia
+            </p>
+          )}
+        </div>
+
+        {/* Placa */}
+        <div>
+          <label className={labelCls}>
+            Placa {needsPlate ? '*' : <span className="normal-case font-normal text-slate-400">(opcional)</span>}
+          </label>
+          <input
+            value={form.placa}
+            onChange={(e) => set('placa', e.target.value.toUpperCase())}
+            placeholder={needsPlate ? 'ABC123' : 'Opcional'}
+            maxLength={6}
+            disabled={isEdit} // placa inmutable
+            className={`${inputCls} font-mono font-bold text-base tracking-widest
+              ${isEdit ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`}
+          />
+          {isEdit && (
+            <p className="text-xs text-slate-400 mt-1">La placa no se puede modificar</p>
+          )}
+        </div>
+
+        {/* Marca y Modelo */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Marca</label>
+            <input
+              value={form.marca}
+              onChange={(e) => set('marca', e.target.value)}
+              placeholder="Ej: Chevrolet"
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Modelo</label>
+            <input
+              value={form.modelo}
+              onChange={(e) => set('modelo', e.target.value)}
+              placeholder="Ej: Spark GT"
+              className={inputCls}
+            />
+          </div>
+        </div>
+
+        {/* Color y Año */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Color</label>
+            <input
+              value={form.color}
+              onChange={(e) => set('color', e.target.value)}
+              placeholder="Ej: Rojo"
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Año</label>
+            <input
+              type="number"
+              value={form.anio}
+              onChange={(e) => set('anio', e.target.value)}
+              placeholder={String(new Date().getFullYear())}
+              min="1970"
+              max={new Date().getFullYear() + 1}
+              className={inputCls}
+            />
+          </div>
+        </div>
+
+        {/* Asignación — solo al crear */}
+        {!isEdit && (
+          <div className="p-4 bg-slate-50 rounded-xl space-y-3 border border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Asignación
+            </p>
+            <div>
+              <label className={labelCls}>ID de la unidad (apartamento) *</label>
+              <input
+                value={form.unit_id}
+                onChange={(e) => set('unit_id', e.target.value)}
+                placeholder="ObjectId de la unidad"
+                className={`${inputCls} font-mono text-xs`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>ID del propietario / residente *</label>
+              <input
+                value={form.propietario_id}
+                onChange={(e) => set('propietario_id', e.target.value)}
+                placeholder="ObjectId del usuario"
+                className={`${inputCls} font-mono text-xs`}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Botones */}
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button" onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700
+              text-sm font-medium rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit" disabled={loading}
+            className="flex-1 py-2.5 bg-[#1a2035] hover:bg-[#242d45] text-white
+              text-sm font-medium rounded-xl transition-colors disabled:opacity-50
+              flex items-center justify-center gap-2"
+          >
+            {loading
+              ? <><Spinner size={4} /> Guardando...</>
+              : isEdit ? 'Guardar cambios' : 'Registrar vehículo'
+            }
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
-export default VehiclesPage;
+// ─── DeleteModal ──────────────────────────────────────────────────────────────
+const DeleteModal = ({ vehicle, onClose, onDeleted }) => {
+  const [loading, setLoading] = useState(false);
+
+  const handle = async () => {
+    setLoading(true);
+    try {
+      await deleteVehicle(vehicle._id);
+      onDeleted('Vehículo eliminado del registro');
+    } catch (err) {
+      alert(err.message);
+      setLoading(false);
+    }
+  };
+
+  const tipo = TIPO_MAP[vehicle.tipo] || TIPO_MAP.otro;
+
+  return (
+    <Modal title="Eliminar vehículo" onClose={onClose}>
+      <div className="space-y-5">
+        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+          <div className="text-3xl">{tipo.icon}</div>
+          <div>
+            <p className="font-bold text-[#1a2035] font-mono tracking-widest">
+              {vehicle.placa || '—'}
+            </p>
+            <p className="text-sm text-slate-500">
+              {[tipo.label, vehicle.marca, vehicle.modelo].filter(Boolean).join(' · ')}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Apto {vehicle.unit_id?.numero || '—'}
+              {vehicle.unit_id?.torre ? ` · Torre ${vehicle.unit_id.torre}` : ''}
+            </p>
+          </div>
+        </div>
+
+        {vehicle.parqueadero_id && (
+          <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200
+            rounded-xl text-sm text-amber-700">
+            <span>⚠️</span>
+            <span>
+              Tiene el puesto <strong>{vehicle.parqueadero_id.numero}</strong> asignado.
+              Al eliminar, el puesto quedará libre automáticamente.
+            </span>
+          </div>
+        )}
+
+        <p className="text-sm text-slate-500">
+          Esta acción no se puede deshacer. El vehículo quedará inactivo en el sistema.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700
+              text-sm font-medium rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handle} disabled={loading}
+            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white
+              text-sm font-medium rounded-xl transition-colors disabled:opacity-50
+              flex items-center justify-center gap-2"
+          >
+            {loading ? <><Spinner size={4} /> Eliminando...</> : '🗑️ Eliminar'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ─── VehicleRow ───────────────────────────────────────────────────────────────
+const VehicleRow = ({ v, isAdmin, onEdit, onDelete, idx }) => {
+  const tipo = TIPO_MAP[v.tipo] || TIPO_MAP.otro;
+
+  return (
+    <tr
+      className={`group transition-colors
+        ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}
+        hover:bg-blue-50/30`}
+    >
+      {/* Tipo + Placa */}
+      <td className="px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#1a2035]/5 border border-[#1a2035]/10
+            flex items-center justify-center text-xl shrink-0">
+            {tipo.icon}
+          </div>
+          <div>
+            {v.placa
+              ? <p className="font-bold text-[#1a2035] font-mono tracking-widest text-sm">{v.placa}</p>
+              : <p className="text-slate-300 text-sm italic">Sin placa</p>
+            }
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md border
+              text-xs font-medium mt-0.5 ${TIPO_COLORS[v.tipo] || TIPO_COLORS.otro}`}>
+              {tipo.label}
+            </span>
+          </div>
+        </div>
+      </td>
+
+      {/* Descripción */}
+      <td className="px-5 py-4">
+        <p className="text-sm font-medium text-slate-700">
+          {[v.marca, v.modelo].filter(Boolean).join(' ') || (
+            <span className="text-slate-300 italic">Sin datos</span>
+          )}
+        </p>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {[v.color, v.anio ? String(v.anio) : null].filter(Boolean).join(' · ') || ''}
+        </p>
+      </td>
+
+      {/* Unidad + Propietario */}
+      <td className="px-5 py-4">
+        {v.unit_id ? (
+          <div>
+            <p className="text-sm font-medium text-slate-700">
+              Apto {v.unit_id.numero}
+              {v.unit_id.torre ? ` · Torre ${v.unit_id.torre}` : ''}
+            </p>
+            {v.propietario_id && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                {v.propietario_id.nombres} {v.propietario_id.apellidos}
+              </p>
+            )}
+          </div>
+        ) : <span className="text-slate-300 text-sm">—</span>}
+      </td>
+
+      {/* Puesto */}
+      <td className="px-5 py-4">
+        {v.parqueadero_id ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a2035]/5
+            border border-[#1a2035]/15 rounded-xl">
+            <div className="w-2 h-2 rounded-full bg-[#1a2035]" />
+            <span className="text-xs font-bold text-[#1a2035]">{v.parqueadero_id.numero}</span>
+          </div>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100
+            rounded-lg text-xs text-slate-400">
+            Sin puesto
+          </span>
+        )}
+      </td>
+
+      {/* Acciones */}
+      {isAdmin && (
+        <td className="px-5 py-4">
+          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => onEdit(v)}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200
+                text-slate-600 text-xs font-medium transition-colors"
+              title="Editar"
+            >
+              ✏️ Editar
+            </button>
+            <button
+              onClick={() => onDelete(v)}
+              className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100
+                text-red-600 text-xs font-medium border border-red-100 transition-colors"
+              title="Eliminar"
+            >
+              🗑️
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+};
+
+// ─── VehiclesPage ─────────────────────────────────────────────────────────────
+export default function VehiclesPage() {
+  const user    = useAuth();
+  const isAdmin = ['admin', 'portero', 'vigilante'].includes(user?.role);
+
+  const [vehicles,    setVehicles]    = useState([]);
+  const [resumen,     setResumen]     = useState({});
+  const [loading,     setLoading]     = useState(true);
+  const [toast,       setToast]       = useState(null);
+  const [search,      setSearch]      = useState('');
+  const [typeFilter,  setTypeFilter]  = useState('');
+  const [spotFilter,  setSpotFilter]  = useState('');
+  const [page,        setPage]        = useState(1);
+  const [pagination,  setPagination]  = useState({});
+  const [formModal,   setFormModal]   = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
+
+  const LIMIT = 10;
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { page, limit: LIMIT };
+      if (search)                  params.placa       = search;
+      if (typeFilter)              params.tipo        = typeFilter;
+      if (spotFilter === 'con')    params.con_puesto  = true;
+      if (spotFilter === 'sin')    params.sin_puesto  = true;
+
+      const r = await getVehicles(params);
+      setVehicles(r.data || []);
+      setResumen(r.resumen || {});
+      setPagination(r.pagination || {});
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [search, typeFilter, spotFilter, page]);
+
+  useEffect(() => { setPage(1); }, [search, typeFilter, spotFilter]);
+  useEffect(() => { load(); }, [load]);
+
+  const handleSaved = (msg) => {
+    setFormModal(null);
+    showToast(msg);
+    load();
+  };
+
+  const handleDeleted = (msg) => {
+    setDeleteModal(null);
+    showToast(msg);
+    load();
+  };
+
+  const total        = pagination.total || 0;
+  const totalPages   = pagination.pages || 1;
+  const totalGeneral = Object.values(resumen).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="min-h-screen bg-[#f4f6f9]">
+
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-slate-100 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+              <span>HomeAccess</span>
+              <span>›</span>
+              <span className="text-[#1a2035] font-medium">Vehículos</span>
+            </div>
+            <h1 className="text-2xl font-bold text-[#1a2035]">Vehículos</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-400">
+              {new Date().toLocaleDateString('es-CO', {
+                weekday: 'long', day: 'numeric', month: 'long',
+              })}
+            </span>
+            {isAdmin && (
+              <button
+                onClick={() => setFormModal('new')}
+                className="px-4 py-2.5 bg-[#1a2035] hover:bg-[#242d45] text-white
+                  text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
+              >
+                + Registrar vehículo
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
+
+        {/* ── Tarjetas resumen ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Total */}
+          <div className="col-span-2 sm:col-span-1 bg-white rounded-2xl p-4 shadow-sm
+            border border-slate-100 flex items-center gap-3">
+            <div className="w-11 h-11 bg-[#1a2035] rounded-xl flex items-center
+              justify-center text-2xl shrink-0">
+              🚙
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-[#1a2035]">{totalGeneral}</p>
+              <p className="text-xs font-medium text-slate-500">Total</p>
+            </div>
+          </div>
+
+          {/* Por tipo */}
+          {TIPOS.map(({ value, label, icon }) => (
+            <button
+              key={value}
+              onClick={() => setTypeFilter(typeFilter === value ? '' : value)}
+              className={`bg-white rounded-2xl p-4 shadow-sm border transition-all text-left
+                hover:shadow-md hover:-translate-y-0.5
+                ${typeFilter === value
+                  ? 'border-[#1a2035] ring-2 ring-[#1a2035]/10'
+                  : 'border-slate-100'}`}
+            >
+              <p className="text-xl mb-1">{icon}</p>
+              <p className="text-xl font-bold text-[#1a2035]">{resumen[value] || 0}</p>
+              <p className="text-xs font-medium text-slate-500">{label}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Tabla ────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-3 p-5 border-b border-slate-100">
+
+            {/* Búsqueda por placa */}
+            <div className="relative min-w-[180px] max-w-xs flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value.toUpperCase())}
+                placeholder="Buscar placa..."
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm
+                  outline-none focus:border-[#1a2035] focus:ring-2 focus:ring-slate-100
+                  transition-all font-mono"
+              />
+            </div>
+
+            {/* Filtro tipo */}
+            <div className="flex gap-1.5 flex-wrap">
+              {[{ value: '', label: 'Todos' }, ...TIPOS].map(({ value, label, icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setTypeFilter(value)}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border
+                    ${typeFilter === value
+                      ? 'bg-[#1a2035] border-[#1a2035] text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                >
+                  {icon ? `${icon} ${label}` : label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtro puesto */}
+            <select
+              value={spotFilter}
+              onChange={(e) => setSpotFilter(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm
+                text-slate-600 outline-none focus:border-[#1a2035] bg-white"
+            >
+              <option value="">Todos los puestos</option>
+              <option value="con">Con puesto asignado</option>
+              <option value="sin">Sin puesto asignado</option>
+            </select>
+          </div>
+
+          {/* Contenido */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+              <Spinner size={10} />
+              <p className="text-sm text-slate-400">Cargando vehículos...</p>
+            </div>
+          ) : vehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+              <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center
+                justify-center text-3xl mb-4">
+                🚗
+              </div>
+              <p className="text-base font-semibold text-slate-700">Sin vehículos</p>
+              <p className="text-sm text-slate-400 mt-1 max-w-xs">
+                {search || typeFilter || spotFilter
+                  ? 'No hay resultados para los filtros aplicados.'
+                  : 'Registra el primer vehículo del conjunto.'}
+              </p>
+              {isAdmin && !search && !typeFilter && !spotFilter && (
+                <button
+                  onClick={() => setFormModal('new')}
+                  className="mt-4 px-4 py-2.5 bg-[#1a2035] text-white text-sm
+                    font-medium rounded-xl hover:bg-[#242d45] transition-colors"
+                >
+                  + Registrar vehículo
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      {['Tipo / Placa', 'Vehículo', 'Unidad', 'Puesto',
+                        ...(isAdmin ? ['Acciones'] : [])].map((h) => (
+                        <th key={h}
+                          className="px-5 py-3 text-left text-xs font-semibold
+                            text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {vehicles.map((v, i) => (
+                      <VehicleRow
+                        key={v._id} v={v} idx={i} isAdmin={isAdmin}
+                        onEdit={setFormModal}
+                        onDelete={setDeleteModal}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-5 py-4
+                  border-t border-slate-100">
+                  <p className="text-sm text-slate-400">
+                    Mostrando {vehicles.length} de {total} vehículos
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm
+                        text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                    >
+                      ‹ Anterior
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p} onClick={() => setPage(p)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
+                          ${page === p
+                            ? 'bg-[#1a2035] text-white'
+                            : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm
+                        text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                    >
+                      Siguiente ›
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Modals ─────────────────────────────────────────────────────────── */}
+      {formModal && (
+        <VehicleFormModal
+          vehicle={formModal === 'new' ? null : formModal}
+          onClose={() => setFormModal(null)}
+          onSaved={handleSaved}
+        />
+      )}
+      {deleteModal && (
+        <DeleteModal
+          vehicle={deleteModal}
+          onClose={() => setDeleteModal(null)}
+          onDeleted={handleDeleted}
+        />
+      )}
+
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+    </div>
+  );
+}

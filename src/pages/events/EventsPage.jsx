@@ -11,7 +11,17 @@ import { useState, useEffect, useCallback } from 'react';
 
 // ─── Servicio API ─────────────────────────────────────────────────────────────
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-const authH = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` });
+// ─── Helper: leer token desde homeaccess-auth ────────────────────────────────
+const getToken = () => {
+  try {
+    const raw = localStorage.getItem('homeaccess-auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.accessToken || null;
+  } catch { return null; }
+};
+
+const authH = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 const api = async (path, opts = {}) => {
   const r = await fetch(`${BASE}${path}`, { headers: authH(), ...opts });
   const d = await r.json();
@@ -28,10 +38,18 @@ const changeStatus = (id, estado) => api(`/events/${id}/estado`, { method: 'PATC
 const confirmAttendance = (id, data) => api(`/events/${id}/confirmar`, { method: 'POST', body: JSON.stringify(data) });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const useAuth = () => { try { return JSON.parse(localStorage.getItem('user')) || {}; } catch { return {}; } };
+const useAuth = () => {
+  try {
+    const raw = localStorage.getItem('homeaccess-auth');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.user || {};
+  } catch { return {}; }
+};
 
 const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const formatTime = (iso) => iso ? new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
+
 const STATUS_CFG = {
   programado:  { label: 'Programado',  bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500'  },
   en_curso:    { label: 'En curso',    bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500' },

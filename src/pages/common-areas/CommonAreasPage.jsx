@@ -38,8 +38,12 @@ import {
 
 // ─── useAuth hook (ajusta al tuyo real) ──────────────────────────────────────
 const useAuth = () => {
-  const raw = localStorage.getItem('user');
-  try { return JSON.parse(raw) || {}; } catch { return {}; }
+  try {
+    const raw = localStorage.getItem('homeaccess-auth');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.user || {};
+  } catch { return {}; }
 };
 
 // ─── AreaCard ─────────────────────────────────────────────────────────────────

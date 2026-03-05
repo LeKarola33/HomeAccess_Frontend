@@ -8,9 +8,22 @@
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
+// ─── Helper: leer token desde homeaccess-auth ────────────────────────────────
+// El store guarda: { "state": { "accessToken": "eyJ..." } }
+const getToken = () => {
+  try {
+    const raw = localStorage.getItem('homeaccess-auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.accessToken || null;
+  } catch {
+    return null;
+  }
+};
+
 // ─── Helper: headers con JWT ──────────────────────────────────────────────────
 const authHeaders = () => {
-  const token = localStorage.getItem('accessToken');
+  const token = getToken();  // ← usa getToken(), no localStorage directo
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
