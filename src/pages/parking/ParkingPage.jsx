@@ -13,32 +13,51 @@ import { useState, useEffect, useCallback } from 'react';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-// ─── Helper: leer token desde homeaccess-auth ────────────────────────────────
-const getToken = () => {
+
+const getAuthState  = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
+const getToken      = () => getAuthState().accessToken  || null;
+const getRefreshTok = () => getAuthState().refreshToken || null;
+
+const saveNewToken = (accessToken) => {
   try {
     const raw = localStorage.getItem('homeaccess-auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.accessToken || null;
-  } catch { return null; }
+    const s   = JSON.parse(raw);
+    s.state.accessToken = accessToken;
+    localStorage.setItem('homeaccess-auth', JSON.stringify(s));
+  } catch {}
 };
 
-const authH = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${getToken()}`,
-});
-const api = async (path, opts = {}) => {
-  const r = await fetch(`${BASE}${path}`, { headers: authH(), ...opts });
+const doRefresh = async () => {
+  const rt  = getRefreshTok();
+  if (!rt) throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
+  const res  = await fetch(`${BASE}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) });
+  const data = await res.json();
+  if (!res.ok) throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
+  saveNewToken(data.data.accessToken);
+  return data.data.accessToken;
+};
+
+const authH = (tok) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${tok || getToken()}` });
+
+const api = async (path, opts = {}, retry = true) => {
+  let tok = getToken();
+  let r   = await fetch(`${BASE}${path}`, { headers: authH(tok), ...opts });
+  if (r.status === 401 && retry) {
+    try { tok = await doRefresh(); r = await fetch(`${BASE}${path}`, { headers: authH(tok), ...opts }); }
+    catch (e) { throw new Error(e.message); }
+  }
   const d = await r.json();
   if (!r.ok) throw new Error(d.message || 'Error del servidor');
   return d;
 };
-const getVehicles  = (p = {}) => api(`/parking/vehicles${new URLSearchParams(p).toString() ? '?' + new URLSearchParams(p) : ''}`);
-const getSpots     = (p = {}) => api(`/parking/spots${new URLSearchParams(p).toString() ? '?' + new URLSearchParams(p) : ''}`);
-const registerVehicle = (data) => api('/parking/vehicles', { method: 'POST', body: JSON.stringify(data) });
-const deleteVehicle   = (id)   => api(`/parking/vehicles/${id}`, { method: 'DELETE' });
+
+const getVehicles     = (p = {}) => api(`/parking/vehicles${new URLSearchParams(p).toString() ? '?' + new URLSearchParams(p) : ''}`);
+const getSpots        = (p = {}) => api(`/parking/spots${new URLSearchParams(p).toString() ? '?' + new URLSearchParams(p) : ''}`);
+const registerVehicle = (data)   => api('/parking/vehicles', { method: 'POST', body: JSON.stringify(data) });
+const deleteVehicle   = (id)     => api(`/parking/vehicles/${id}`, { method: 'DELETE' });
 const assignSpot      = (vId, pId) => api(`/parking/vehicles/${vId}/assign`,   { method: 'PATCH', body: JSON.stringify({ parqueadero_id: pId }) });
 const unassignSpot    = (vId)      => api(`/parking/vehicles/${vId}/unassign`, { method: 'PATCH' });
+const bulkCreateSpots = (total, prefijo) => api('/parking/spots/bulk-create', { method: 'POST', body: JSON.stringify({ total, prefijo }) });
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const useAuth = () => {
@@ -65,7 +84,7 @@ const ICON_COLORS = {
 
 const Spinner = () => (
   <div className="flex items-center justify-center py-16">
-    <div className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+    <div className="w-8 h-8 border-2 border-gray-200 border-t-[#6366f1] rounded-full animate-spin" />
   </div>
 );
 
@@ -83,7 +102,7 @@ const StatusBadge = ({ assigned }) => assigned
   ? <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" /> Asignado
     </span>
-  : <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+  : <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-gray-200">
       <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" /> Sin puesto
     </span>;
 
@@ -91,7 +110,7 @@ const StatusBadge = ({ assigned }) => assigned
 const StatCard = ({ label, value, sub, iconBg, icon }) => (
   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center justify-between">
     <div>
-      <p className="text-sm text-gray-500 mb-1">{label}</p>
+      <p className="text-sm text-slate-500 mb-1">{label}</p>
       <p className="text-3xl font-bold text-gray-800">{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
@@ -109,7 +128,7 @@ const Modal = ({ title, onClose, children, maxW = 'max-w-lg' }) => (
       <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
         <h2 className="text-base font-semibold text-gray-800">{title}</h2>
         <button onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-xl transition-colors">
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-gray-400 text-xl transition-colors">
           ×
         </button>
       </div>
@@ -145,7 +164,7 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
 
   const field = (label, key, props = {}) => (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-slate-700">{label}</label>
       <input
         value={form[key]}
         onChange={e => set(key, props.upper ? e.target.value.toUpperCase() : e.target.value)}
@@ -164,7 +183,7 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Placa <span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium text-slate-700">Placa <span className="text-red-500">*</span></label>
             <input
               value={form.placa}
               onChange={e => set('placa', e.target.value.toUpperCase())}
@@ -174,7 +193,7 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Tipo</label>
+            <label className="text-sm font-medium text-slate-700">Tipo</label>
             <select value={form.tipo} onChange={e => set('tipo', e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-blue-400 bg-white">
               <option value="carro">🚗 Carro</option>
@@ -196,14 +215,14 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">ID Unidad (unit_id) <span className="text-red-500">*</span></label>
+          <label className="text-sm font-medium text-slate-700">ID Unidad (unit_id) <span className="text-red-500">*</span></label>
           <input value={form.unit_id} onChange={e => set('unit_id', e.target.value)}
             placeholder="MongoDB _id de la unidad"
             className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50" />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-gray-700">ID Propietario (user_id) <span className="text-red-500">*</span></label>
+          <label className="text-sm font-medium text-slate-700">ID Propietario (user_id) <span className="text-red-500">*</span></label>
           <input value={form.propietario_id} onChange={e => set('propietario_id', e.target.value)}
             placeholder="MongoDB _id del propietario"
             className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50" />
@@ -211,11 +230,11 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
 
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose}
-            className="flex-1 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors">
+            className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors">
             Cancelar
           </button>
           <button type="submit" disabled={loading}
-            className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="flex-1 py-2.5 bg-[#6366f1] text-white text-sm font-medium rounded-xl hover:bg-[#4f46e5] disabled:opacity-50 transition-colors">
             {loading ? 'Registrando...' : 'Registrar vehículo'}
           </button>
         </div>
@@ -224,19 +243,28 @@ const RegisterVehicleModal = ({ onClose, onSaved }) => {
   );
 };
 
-// ─── Modal: Asignar Puesto ────────────────────────────────────────────────────
+// ─── Modal: Asignar Puesto (grid visual) ─────────────────────────────────────
 const AssignSpotModal = ({ vehicle, onClose, onDone }) => {
-  const [spots,    setSpots]    = useState([]);
+  const [allSpots, setAllSpots] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [selected, setSelected] = useState('');
+  const [filter,   setFilter]   = useState('libres'); // 'libres' | 'todos'
 
   useEffect(() => {
-    getSpots({ estado: 'desocupado' })
-      .then(r => setSpots(r.data || []))
-      .catch(() => setSpots([]))
+    getSpots()
+      .then(r => setAllSpots(r.data || []))
+      .catch(() => setAllSpots([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const spots = filter === 'libres'
+    ? allSpots.filter(s => s.estado === 'desocupado')
+    : allSpots;
+
+  const libre    = allSpots.filter(s => s.estado === 'desocupado').length;
+  const ocupado  = allSpots.filter(s => s.estado === 'ocupado').length;
+  const mant     = allSpots.filter(s => s.estado === 'en_mantenimiento').length;
 
   const handle = async () => {
     if (!selected) return;
@@ -244,45 +272,124 @@ const AssignSpotModal = ({ vehicle, onClose, onDone }) => {
     try {
       await assignSpot(vehicle._id, selected);
       onDone('Puesto asignado exitosamente');
-    } catch (err) { alert(err.message); }
-    finally { setSaving(false); }
+    } catch (err) { alert(err.message); setSaving(false); }
+  };
+
+  const spotColor = (s) => {
+    if (s._id === selected) return 'bg-[#6366f1] border-[#6366f1] text-white shadow-lg scale-105';
+    if (s.estado === 'ocupado') return 'bg-red-50 border-red-200 text-red-400 cursor-not-allowed';
+    if (s.estado === 'en_mantenimiento') return 'bg-amber-50 border-amber-200 text-amber-500 cursor-not-allowed';
+    return 'bg-white border-slate-200 text-slate-700 hover:border-[#6366f1] hover:bg-[#6366f1]/5 cursor-pointer';
   };
 
   return (
-    <Modal title={`Asignar puesto — ${vehicle.placa}`} onClose={onClose} maxW="max-w-md">
+    <Modal title={`Asignar puesto`} onClose={onClose} maxW="max-w-lg">
       <div className="space-y-4">
-        <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-600">
-          <span className="font-medium">{VEHICLE_TYPE_ICON[vehicle.tipo]} {vehicle.placa}</span>
-          {' · '}{vehicle.marca} {vehicle.modelo} · Apto {vehicle.unit_id?.numero || '—'}
+
+        {/* Info vehículo */}
+        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+          <span className="text-2xl">{VEHICLE_TYPE_ICON[vehicle.tipo]}</span>
+          <div>
+            <p className="font-bold text-[#1a2035] font-mono tracking-widest text-sm">{vehicle.placa || '—'}</p>
+            <p className="text-xs text-slate-400">
+              {[vehicle.marca, vehicle.modelo].filter(Boolean).join(' ')} · Apto {vehicle.unit_id?.numero || '—'}
+            </p>
+          </div>
         </div>
 
-        {loading ? <Spinner /> : spots.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">No hay puestos disponibles</p>
+        {loading ? (
+          <div className="flex flex-col items-center py-12 gap-2">
+            <div className="w-8 h-8 border-2 border-slate-200 border-t-[#6366f1] rounded-full animate-spin" />
+            <p className="text-sm text-slate-400">Cargando puestos...</p>
+          </div>
+        ) : allSpots.length === 0 ? (
+          <div className="text-center py-10 space-y-3">
+            <div className="text-4xl">🅿️</div>
+            <p className="text-sm font-semibold text-slate-600">No hay puestos configurados</p>
+            <p className="text-xs text-slate-400">
+              El administrador debe crear los puestos de parqueadero primero.
+            </p>
+          </div>
         ) : (
           <>
-            <p className="text-sm text-gray-500">Selecciona un puesto libre:</p>
-            <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto">
+            {/* Leyenda + contador */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-white border-2 border-slate-200 inline-block" />
+                  <span className="text-slate-500">Libre ({libre})</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-red-100 border-2 border-red-200 inline-block" />
+                  <span className="text-slate-500">Ocupado ({ocupado})</span>
+                </span>
+                {mant > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-amber-100 border-2 border-amber-200 inline-block" />
+                    <span className="text-slate-500">Mant. ({mant})</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                {['libres','todos'].map(f => (
+                  <button key={f} onClick={() => { setFilter(f); setSelected(''); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all
+                      ${filter === f ? 'bg-[#6366f1] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    {f === 'libres' ? `Solo libres` : 'Ver todos'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid de puestos */}
+            <div className="grid grid-cols-5 gap-2 max-h-64 overflow-y-auto pr-1">
               {spots.map(s => (
-                <button key={s._id} onClick={() => setSelected(s._id)}
-                  className={`py-3 rounded-xl border text-sm font-bold transition-all
-                    ${selected === s._id
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                      : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50'}`}>
-                  {s.numero}
+                <button
+                  key={s._id}
+                  disabled={s.estado !== 'desocupado'}
+                  onClick={() => s.estado === 'desocupado' && setSelected(s._id)}
+                  title={s.estado === 'ocupado' && s.vehiculo_asignado
+                    ? `Ocupado por ${s.vehiculo_asignado.placa}`
+                    : s.estado === 'en_mantenimiento' ? 'En mantenimiento' : `Puesto ${s.numero}`}
+                  className={`relative py-3 rounded-xl border text-xs font-bold transition-all
+                    ${spotColor(s)}`}>
+                  <span className="block text-center leading-none">{s.numero}</span>
+                  {s.estado === 'ocupado' && (
+                    <span className="block text-center text-[10px] mt-1 opacity-60 leading-none">
+                      {s.vehiculo_asignado?.placa || '●'}
+                    </span>
+                  )}
+                  {s.estado === 'en_mantenimiento' && (
+                    <span className="block text-center text-[10px] mt-0.5">🔧</span>
+                  )}
                 </button>
               ))}
             </div>
+
+            {selected && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-[#6366f1]/5 border border-[#6366f1]/20 rounded-xl text-sm">
+                <span className="text-[#6366f1]">✓</span>
+                <span className="text-slate-700">
+                  Seleccionado: <strong className="text-[#6366f1]">
+                    {allSpots.find(s => s._id === selected)?.numero}
+                  </strong>
+                </span>
+              </div>
+            )}
           </>
         )}
 
         <div className="flex gap-3 pt-1">
           <button onClick={onClose}
-            className="flex-1 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200">
+            className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition-colors">
             Cancelar
           </button>
           <button onClick={handle} disabled={!selected || saving}
-            className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {saving ? 'Asignando...' : 'Asignar puesto'}
+            className="flex-1 py-2.5 bg-[#6366f1] text-white text-sm font-medium rounded-xl
+              hover:bg-[#4f46e5] disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            {saving
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Asignando...</>
+              : `🅿️ Asignar puesto`}
           </button>
         </div>
       </div>
@@ -295,13 +402,13 @@ const VehicleDetailModal = ({ vehicle, onClose }) => (
   <Modal title="Detalle del vehículo" onClose={onClose} maxW="max-w-md">
     <div className="space-y-4">
       {/* Ícono grande + placa */}
-      <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
+      <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
         <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl">
           {VEHICLE_TYPE_ICON[vehicle.tipo]}
         </div>
         <div>
           <p className="text-2xl font-black text-gray-800 tracking-widest font-mono">{vehicle.placa}</p>
-          <p className="text-sm text-gray-500 capitalize">{VEHICLE_TYPE_LABEL[vehicle.tipo]}</p>
+          <p className="text-sm text-slate-500 capitalize">{VEHICLE_TYPE_LABEL[vehicle.tipo]}</p>
         </div>
       </div>
 
@@ -319,18 +426,18 @@ const VehicleDetailModal = ({ vehicle, onClose }) => (
               ? `${vehicle.propietario_id.nombres || ''} ${vehicle.propietario_id.apellidos || ''}`.trim() || '—'
               : '—' },
         ].map(({ label, val }) => (
-          <div key={label} className="p-3 bg-gray-50 rounded-xl">
+          <div key={label} className="p-3 bg-slate-50 rounded-xl">
             <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-            <p className="text-sm font-medium text-gray-700">{val}</p>
+            <p className="text-sm font-medium text-slate-700">{val}</p>
           </div>
         ))}
       </div>
 
       {/* Puesto */}
-      <div className="p-3 bg-gray-50 rounded-xl flex items-center justify-between">
+      <div className="p-3 bg-slate-50 rounded-xl flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Puesto de parqueadero</p>
-          <p className="text-sm font-medium text-gray-700">
+          <p className="text-sm font-medium text-slate-700">
             {vehicle.parqueadero_id ? `Puesto ${vehicle.parqueadero_id.numero}` : 'Sin puesto asignado'}
           </p>
         </div>
@@ -338,7 +445,7 @@ const VehicleDetailModal = ({ vehicle, onClose }) => (
       </div>
 
       <button onClick={onClose}
-        className="w-full py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200">
+        className="w-full py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200">
         Cerrar
       </button>
     </div>
@@ -410,7 +517,7 @@ const VehiclesTab = ({ isAdmin }) => {
           <h3 className="text-base font-semibold text-gray-800">Vehículos registrados</h3>
           {isAdmin && (
             <button onClick={() => setRegisterModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+              className="flex items-center gap-2 px-4 py-2 bg-[#6366f1] text-white text-sm font-medium rounded-xl hover:bg-[#4f46e5] transition-colors">
               <span className="text-lg leading-none">+</span> Registrar vehículo
             </button>
           )}
@@ -439,7 +546,7 @@ const VehiclesTab = ({ isAdmin }) => {
           </select>
           {(search || typeFilter) && (
             <button onClick={() => { setSearch(''); setTypeFilter(''); }}
-              className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+              className="px-3 py-2 text-xs text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
               Limpiar filtros
             </button>
           )}
@@ -470,7 +577,7 @@ const VehiclesTab = ({ isAdmin }) => {
             {/* Filas */}
             {vehicles.map((v) => (
               <div key={v._id}
-                className="grid grid-cols-12 gap-4 px-5 py-3.5 items-center hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                className="grid grid-cols-12 gap-4 px-5 py-3.5 items-center hover:bg-slate-50 transition-colors border-b border-gray-50 last:border-0">
 
                 {/* Placa */}
                 <div className="col-span-2">
@@ -487,7 +594,7 @@ const VehiclesTab = ({ isAdmin }) => {
 
                 {/* Marca / modelo / color */}
                 <div className="col-span-3">
-                  <p className="text-sm font-medium text-gray-700 truncate">
+                  <p className="text-sm font-medium text-slate-700 truncate">
                     {[v.marca, v.modelo].filter(Boolean).join(' ') || '—'}
                   </p>
                   <p className="text-xs text-gray-400">{[v.color, v.anio].filter(Boolean).join(' · ') || ''}</p>
@@ -495,7 +602,7 @@ const VehiclesTab = ({ isAdmin }) => {
 
                 {/* Apartamento */}
                 <div className="col-span-2">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-slate-700">
                     {v.unit_id?.numero ? `Apto ${v.unit_id.numero}` : '—'}
                   </p>
                   {v.unit_id?.torre && <p className="text-xs text-gray-400">Torre {v.unit_id.torre}</p>}
@@ -515,7 +622,7 @@ const VehiclesTab = ({ isAdmin }) => {
                 <div className="col-span-1 flex items-center justify-end gap-1">
                   <button onClick={() => setDetailModal(v)}
                     title="Ver detalle"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-sm">
+                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-gray-400 hover:text-gray-600 transition-colors text-sm">
                     👁
                   </button>
                   {isAdmin && (
@@ -523,7 +630,7 @@ const VehiclesTab = ({ isAdmin }) => {
                       {!v.parqueadero_id
                         ? <button onClick={() => setAssignModal(v)}
                             title="Asignar puesto"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors text-sm">
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-[#6366f1] transition-colors text-sm">
                             🅿️
                           </button>
                         : <button onClick={() => handleUnassign(v)}
@@ -569,8 +676,55 @@ const VehiclesTab = ({ isAdmin }) => {
   );
 };
 
+// ─── BulkCreateButton ─────────────────────────────────────────────────────────
+const BulkCreateButton = ({ onCreated, compact = false }) => {
+  const user    = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [loading, setLoading] = useState(false);
+  const [done,    setDone]    = useState(false);
+
+  if (!isAdmin) return null;
+
+  const handle = async () => {
+    if (!window.confirm('¿Crear 50 puestos de parqueadero (P-01 a P-50)?\nLos puestos que ya existan serán omitidos.')) return;
+    setLoading(true);
+    try {
+      const r = await bulkCreateSpots(50, 'P');
+      setDone(true);
+      alert(`✅ ${r.message}`);
+      onCreated?.();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (compact) return (
+    <button onClick={handle} disabled={loading}
+      className="px-3 py-1.5 bg-[#6366f1]/10 hover:bg-[#6366f1]/20 text-[#6366f1]
+        border border-[#6366f1]/20 text-xs font-medium rounded-xl transition-all
+        flex items-center gap-1.5 disabled:opacity-50">
+      {loading ? '⏳' : '⚡'} {loading ? 'Creando...' : 'Crear 50 puestos'}
+    </button>
+  );
+
+  return (
+    <button onClick={handle} disabled={loading}
+      className="px-5 py-2.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white
+        text-sm font-medium rounded-xl transition-colors flex items-center gap-2
+        disabled:opacity-50 mx-auto">
+      {loading
+        ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creando puestos...</>
+        : '⚡ Crear 50 puestos de parqueadero'}
+    </button>
+  );
+};
+
 // ─── Tab: Mapa de Puestos ─────────────────────────────────────────────────────
 const SpotsTab = () => {
+  const user    = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [spots,   setSpots]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('');
@@ -581,7 +735,7 @@ const SpotsTab = () => {
     try {
       const r = await getSpots(filter ? { estado: filter } : {});
       setSpots(r.data || []);
-      setSummary(r.resumen || {});
+      setSummary(r.summary || r.resumen || {});
     } catch { setSpots([]); }
     finally { setLoading(false); }
   }, [filter]);
@@ -601,8 +755,12 @@ const SpotsTab = () => {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-          <h3 className="text-base font-semibold text-gray-800">Mapa de puestos</h3>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-semibold text-gray-800">Mapa de puestos</h3>
+            {spots.length === 0 || true ? null : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <BulkCreateButton onCreated={load} compact />
             {[
               { val: '',              label: 'Todos'         },
               { val: 'desocupado',    label: '🟢 Libres'     },
@@ -611,7 +769,7 @@ const SpotsTab = () => {
             ].map(({ val, label }) => (
               <button key={val} onClick={() => setFilter(val)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors
-                  ${filter === val ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  ${filter === val ? 'bg-[#6366f1] text-white' : 'bg-slate-100 text-gray-600 hover:bg-slate-200'}`}>
                 {label}
               </button>
             ))}
@@ -621,10 +779,15 @@ const SpotsTab = () => {
         {/* Grid */}
         <div className="p-5">
           {loading ? <Spinner /> : spots.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-3">🅿️</div>
-              <p className="font-semibold text-gray-600">Sin puestos registrados</p>
-              <p className="text-sm text-gray-400 mt-1">Crea unidades con tipo "parqueadero" desde el módulo de Unidades</p>
+            <div className="text-center py-12 space-y-4">
+              <div className="text-5xl">🅿️</div>
+              <div>
+                <p className="font-semibold text-gray-600">Sin puestos registrados</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  El conjunto tiene capacidad para 50 puestos pero aún no están creados.
+                </p>
+              </div>
+              <BulkCreateButton onCreated={load} />
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
@@ -640,7 +803,7 @@ const SpotsTab = () => {
                     <div className="text-xl mb-1">{isOcc ? '🔴' : isMaint ? '🔧' : '🟢'}</div>
                     <p className="font-black text-sm text-gray-800">{s.numero}</p>
                     {s.vehiculo_asignado && (
-                      <p className="text-xs font-mono text-gray-500 mt-0.5 truncate">
+                      <p className="text-xs font-mono text-slate-500 mt-0.5 truncate">
                         {s.vehiculo_asignado.placa}
                       </p>
                     )}
@@ -667,12 +830,12 @@ export default function ParkingPage() {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
         <span>HomeAccess</span>
         <span>›</span>
-        <span className="text-gray-700 font-medium">Parqueadero</span>
+        <span className="text-slate-700 font-medium">Parqueadero</span>
       </div>
 
       {/* Page title */}
@@ -688,7 +851,7 @@ export default function ParkingPage() {
         ].map(({ val, label }) => (
           <button key={val} onClick={() => setTab(val)}
             className={`px-5 py-2 rounded-xl text-sm font-medium transition-all
-              ${tab === val ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              ${tab === val ? 'bg-[#6366f1] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
             {label}
           </button>
         ))}
