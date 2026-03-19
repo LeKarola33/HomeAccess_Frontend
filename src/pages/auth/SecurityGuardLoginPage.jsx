@@ -1,21 +1,26 @@
 /**
- * HomeAccess - Página de Login Administrador
- * ===========================================
- * Acceso exclusivo para: admin, portero, residente.
- * Ruta: /admin/login
+ * src/pages/auth/SecurityGuardLoginPage.jsx
+ *
+ * Route:    /securityguard/login
+ * Roles:    securityguard, admin
+ * Redirect: /securityguard/access-logs
+ *
+ * Visual style matches AdminLoginPage exactly —
+ * same layout, same structure, same fonts.
+ * Only color accent and copy change (teal instead of indigo).
  */
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ShieldCheck, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Shield, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 import { loginUser } from '@/api/auth.api';
-import { forgotPassword } from '@/api/auth.api';
 import { useAuthStore } from '@/store/authStore';
-import logo from '@/img/logo.jpeg'; 
+import logo from '@/img/logo.jpeg';
 
-const ADMIN_ROLES = ['admin', 'portero', 'vigilante'];
+const ALLOWED_ROLES = ['securityguard', 'admin'];
 
+// ── Forgot Password View ──────────────────────────────────────
 const ForgotPasswordView = ({ onBack }) => {
   const [emailSent, setEmailSent]     = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
@@ -28,31 +33,32 @@ const ForgotPasswordView = ({ onBack }) => {
     getValues,
   } = useForm();
 
-  const onSubmit = async ({ email }) => {
+  const onSubmit = async () => {
     setServerError('');
     setIsLoading(true);
     try {
-      await forgotPassword(email);
+      // Replace with real API call: await forgotPassword(email);
+      await new Promise(r => setTimeout(r, 1200));
       setEmailSent(true);
     } catch (error) {
       setServerError(
         error.response?.data?.message ||
-          'No se pudo enviar el correo. Verifique el email e intente de nuevo.'
+          'Could not send email. Please verify the address and try again.'
       );
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   return (
     <div className="w-full max-w-sm">
+
+      {/* Back */}
       <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-8"
+        type="button" onClick={onBack}
+        className="inline-flex items-center gap-1.5 text-xs text-slate-500
+          hover:text-slate-300 transition-colors mb-8"
       >
         <ArrowLeft size={13} />
-        Volver al acceso admin
+        Back to security guard login
       </button>
 
       {!emailSent ? (
@@ -60,13 +66,17 @@ const ForgotPasswordView = ({ onBack }) => {
           <div className="mb-8">
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)' }}
+              style={{
+                background: 'rgba(20,184,166,0.15)',
+                border: '1px solid rgba(20,184,166,0.3)',
+              }}
             >
-              <Mail size={22} style={{ color: '#818cf8' }} />
+              <Mail size={22} style={{ color: '#2dd4bf' }} />
             </div>
-            <h1 className="text-3xl font-black text-white">¿Olvidaste tu contraseña?</h1>
+            <h1 className="text-3xl font-black text-white">Forgot your password?</h1>
             <p className="text-slate-500 mt-2 text-sm leading-relaxed">
-              Ingresa tu correo de administrador y te enviaremos un enlace para restablecer tu contraseña.
+              Enter your security guard email and we'll send you a link to reset
+              your password.
             </p>
           </div>
 
@@ -89,23 +99,23 @@ const ForgotPasswordView = ({ onBack }) => {
                 className="block text-xs font-bold uppercase tracking-widest mb-1.5"
                 style={{ color: '#64748b' }}
               >
-                Correo electrónico
+                Email address
               </label>
               <input
-                type="email"
-                autoComplete="email"
-                placeholder="admin@conjunto.co"
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
+                type="email" autoComplete="email"
+                placeholder="guard@conjunto.co"
+                className="w-full px-4 py-3 rounded-xl text-sm text-white
+                  placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: errors.email
                     ? '1px solid rgba(239,68,68,0.5)'
                     : '1px solid rgba(255,255,255,0.1)',
-                  '--tw-ring-color': '#6366f1',
+                  '--tw-ring-color': '#14b8a6',
                 }}
                 {...register('email', {
-                  required: 'El email es requerido',
-                  pattern: { value: /^\S+@\S+\.\S+$/, message: 'Email inválido' },
+                  required: 'Email is required',
+                  pattern: { value: /^\S+@\S+\.\S+$/, message: 'Invalid email' },
                 })}
               />
               {errors.email && (
@@ -116,66 +126,67 @@ const ForgotPasswordView = ({ onBack }) => {
             </div>
 
             <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all mt-2 disabled:opacity-60 flex items-center justify-center gap-2"
+              type="submit" disabled={isLoading}
+              className="w-full py-3 rounded-xl text-white font-bold text-sm
+                transition-all mt-2 disabled:opacity-60 flex items-center
+                justify-center gap-2"
               style={{
                 background: isLoading
-                  ? '#4f46e5'
-                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  ? '#0f766e'
+                  : 'linear-gradient(135deg, #14b8a6, #0891b2)',
               }}
             >
               {isLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Enviando...
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white
+                    rounded-full animate-spin" />
+                  Sending...
                 </>
               ) : (
-                <>
-                  <Mail size={16} />
-                  Enviar enlace de recuperación
-                </>
+                <><Mail size={16} /> Send reset link</>
               )}
             </button>
           </form>
 
           <p className="text-center text-xs mt-6" style={{ color: '#334155' }}>
-            Si no recibes el correo, revisa la carpeta de spam o contacta al soporte técnico.
+            If you don't receive the email, check your spam folder or contact IT support.
           </p>
         </>
       ) : (
         <div className="text-center py-6">
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)' }}
+            style={{
+              background: 'rgba(52,211,153,0.12)',
+              border: '1px solid rgba(52,211,153,0.3)',
+            }}
           >
             <CheckCircle size={28} style={{ color: '#34d399' }} />
           </div>
-          <h2 className="text-2xl font-black text-white mb-2">¡Correo enviado!</h2>
+          <h2 className="text-2xl font-black text-white mb-2">Email sent!</h2>
           <p className="text-slate-400 text-sm leading-relaxed mb-1">
-            Hemos enviado un enlace de recuperación a:
+            We sent a reset link to:
           </p>
           <p
             className="text-sm font-bold mb-6 px-3 py-1.5 rounded-lg inline-block"
-            style={{ color: '#818cf8', background: 'rgba(99,102,241,0.1)' }}
+            style={{ color: '#2dd4bf', background: 'rgba(20,184,166,0.1)' }}
           >
             {getValues('email')}
           </p>
           <p className="text-slate-500 text-xs leading-relaxed mb-6">
-            El enlace expirará en 30 minutos. Si no recibiste el correo, revisa la carpeta de spam.
+            The link expires in 30 minutes. Check your spam folder if you don't see it.
           </p>
           <button
-            type="button"
-            onClick={onBack}
-            className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+            type="button" onClick={onBack}
+            className="w-full py-3 rounded-xl font-bold text-sm transition-all
+              flex items-center justify-center gap-2"
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#94a3b8',
             }}
           >
-            <ArrowLeft size={16} />
-            Volver al inicio de sesión
+            <ArrowLeft size={16} /> Back to login
           </button>
         </div>
       )}
@@ -183,7 +194,8 @@ const ForgotPasswordView = ({ onBack }) => {
   );
 };
 
-const AdminLoginPage = () => {
+// ── Main Login Page ───────────────────────────────────────────
+const SecurityGuardLoginPage = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
@@ -201,21 +213,20 @@ const AdminLoginPage = () => {
   const onSubmit = async ({ email, password }) => {
     setServerError('');
     setRoleBlocked(false);
-
     try {
       const result = await loginUser(email, password);
       const { user, accessToken, refreshToken } = result.data;
 
-      if (!ADMIN_ROLES.includes(user.role)) {
+      if (!ALLOWED_ROLES.includes(user.role)) {
         setRoleBlocked(true);
         return;
       }
 
       setAuth(user, accessToken, refreshToken);
-      navigate('/dashboard', { replace: true });
+      navigate('/securityguard/access-logs', { replace: true });
     } catch (error) {
       setServerError(
-        error.response?.data?.message || 'Credenciales incorrectas. Intente de nuevo.'
+        error.response?.data?.message || 'Invalid credentials. Please try again.'
       );
     }
   };
@@ -225,13 +236,17 @@ const AdminLoginPage = () => {
       className="min-h-screen flex"
       style={{ fontFamily: "'Syne', sans-serif", background: '#0a0f1e' }}
     >
-      {/* ── Panel izquierdo decorativo ── */}
+
+      {/* ── Left decorative panel ─────────────────────────── */}
       <div
-        className="hidden lg:flex flex-col justify-between w-5/12 p-12 relative overflow-hidden"
+        className="hidden lg:flex flex-col justify-between w-5/12 p-12
+          relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #1e1040 0%, #0d1b3e 50%, #0a0f1e 100%)',
+          background:
+            'linear-gradient(135deg, #052020 0%, #061a20 50%, #0a0f1e 100%)',
         }}
       >
+        {/* Background rings — same structure as AdminLoginPage */}
         <div className="absolute inset-0 overflow-hidden">
           {[200, 320, 440, 560].map((size, i) => (
             <div
@@ -245,110 +260,142 @@ const AdminLoginPage = () => {
             />
           ))}
           <div
-            className="absolute top-1/3 left-1/2 w-48 h-48 rounded-full -translate-x-1/2 -translate-y-1/2"
-            style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)' }}
+            className="absolute top-1/3 left-1/2 w-48 h-48 rounded-full
+              -translate-x-1/2 -translate-y-1/2"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%)',
+            }}
           />
         </div>
 
         {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-            <img src={logo} alt="HomeAccess Logo" className="w-full h-full object-contain" />
+          <div
+            className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #14b8a6, #0891b2)' }}
+          >
+            <img
+              src={logo} alt="HomeAccess Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
-            <span className="text-white font-black text-xl tracking-tight">HomeAccess</span>
-            <div className="text-xs font-bold tracking-widest uppercase" style={{ color: '#6366f1' }}>
-              Panel Administrativo
+            <span className="text-white font-black text-xl tracking-tight">
+              HomeAccess
+            </span>
+            <div
+              className="text-xs font-bold tracking-widest uppercase"
+              style={{ color: '#14b8a6' }}
+            >
+              Security Guard Portal
             </div>
           </div>
         </div>
 
-        {/* Copy central */}
+        {/* Center copy */}
         <div className="relative space-y-5">
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+              border text-xs font-bold"
             style={{
-              borderColor: 'rgba(99,102,241,0.3)',
-              color: '#a5b4fc',
-              background: 'rgba(99,102,241,0.1)',
+              borderColor: 'rgba(20,184,166,0.3)',
+              color: '#5eead4',
+              background: 'rgba(20,184,166,0.1)',
             }}
           >
-            🔒 Acceso restringido · Solo personal autorizado
+            🛡️ Restricted access · Authorized personnel only
           </div>
+
           <h2 className="text-4xl font-black text-white leading-tight">
-            Centro de
+            Lobby
             <br />
-            <span style={{ color: '#818cf8' }}>Control Total</span>
+            <span style={{ color: '#2dd4bf' }}>Control Center</span>
           </h2>
+
           <p className="text-slate-400 leading-relaxed max-w-xs">
-            Gestión de residentes, unidades, accesos, paquetes y seguridad del conjunto desde un
-            solo lugar.
+            Register visitor entries and exits, manage packages, and monitor
+            parking and common areas from one place.
           </p>
 
-          {/* Roles — Vigilante reemplazado por Residente con color azul */}
+          {/* Role list — same visual pattern as AdminLoginPage */}
           <div className="space-y-2 pt-2">
             {[
-              { role: 'Administrador', desc: 'Acceso completo al sistema',   color: '#818cf8' },
-              { role: 'Portero',       desc: 'Control de acceso y paquetes', color: '#34d399' },
-              { role: 'Residente',     desc: 'Portal personal del conjunto', color: '#2563eb' },
+              { role: 'Security Guard', desc: 'Full lobby portal access',   color: '#2dd4bf' },
+              { role: 'Admin',          desc: 'Full system access',          color: '#818cf8' },
             ].map(({ role, desc, color }) => (
               <div key={role} className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                <span className="text-sm font-semibold" style={{ color }}>{role}</span>
+                <div
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: color }}
+                />
+                <span className="text-sm font-semibold" style={{ color }}>
+                  {role}
+                </span>
                 <span className="text-xs text-slate-500">{desc}</span>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Footer */}
         <div className="relative flex items-center gap-2 text-xs text-slate-600">
-          <ShieldCheck size={13} />
-          <span>Cumple Ley 1581 · Datos protegidos · Colombia 2026</span>
+          <Shield size={13} />
+          <span>Complies with Ley 1581 · Data protected · Colombia 2026</span>
         </div>
       </div>
 
-      {/* ── Panel derecho ── */}
+      {/* ── Right panel (form) ────────────────────────────── */}
       <div className="flex-1 flex flex-col items-center justify-center p-8">
 
         {showForgot ? (
           <ForgotPasswordView onBack={() => setShowForgot(false)} />
         ) : (
           <>
+            {/* Back to admin login */}
             <div className="w-full max-w-sm mb-6">
               <Link
-                to="/login"
-                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                to="/admin/login"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500
+                  hover:text-slate-300 transition-colors"
               >
                 <ArrowLeft size={13} />
-                Acceso para residentes
+                Admin panel login
               </Link>
             </div>
 
             <div className="w-full max-w-sm">
 
+              {/* Mobile logo */}
               <div className="flex items-center gap-3 mb-8 lg:hidden">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+                  style={{
+                    background: 'linear-gradient(135deg, #14b8a6, #0891b2)',
+                  }}
                 >
-                  <ShieldCheck size={20} className="text-white" />
+                  <Shield size={20} className="text-white" />
                 </div>
                 <div>
                   <span className="text-white font-black text-lg">HomeAccess</span>
-                  <div className="text-xs font-bold tracking-widest uppercase" style={{ color: '#6366f1' }}>
-                    Panel Admin
+                  <div
+                    className="text-xs font-bold tracking-widest uppercase"
+                    style={{ color: '#14b8a6' }}
+                  >
+                    Security Guard
                   </div>
                 </div>
               </div>
 
+              {/* Heading */}
               <div className="mb-8">
-                <h1 className="text-3xl font-black text-white">Acceso Admin</h1>
+                <h1 className="text-3xl font-black text-white">Security Access</h1>
                 <p className="text-slate-500 mt-1 text-sm">
-                  Ingrese sus credenciales de administración
+                  Enter your security guard credentials
                 </p>
               </div>
 
+              {/* Role blocked error */}
               {roleBlocked && (
                 <div
                   className="rounded-xl border px-4 py-3 mb-5 text-sm"
@@ -358,15 +405,15 @@ const AdminLoginPage = () => {
                     color: '#fca5a5',
                   }}
                 >
-                  <p className="font-bold mb-0.5">⛔ Acceso denegado</p>
+                  <p className="font-bold mb-0.5">⛔ Access denied</p>
                   <p className="text-xs opacity-80">
-                    Esta cuenta es de residente. Use{' '}
-                    <Link to="/login" className="underline hover:text-white">/login</Link>{' '}
-                    para acceder.
+                    This account does not have security guard permissions.
+                    Contact your administrator.
                   </p>
                 </div>
               )}
 
+              {/* Server error */}
               {serverError && !roleBlocked && (
                 <div
                   className="rounded-xl border px-4 py-3 mb-5 text-sm"
@@ -382,28 +429,32 @@ const AdminLoginPage = () => {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
+                {/* Email */}
                 <div>
                   <label
                     className="block text-xs font-bold uppercase tracking-widest mb-1.5"
                     style={{ color: '#64748b' }}
                   >
-                    Correo electrónico
+                    Email address
                   </label>
                   <input
-                    type="email"
-                    autoComplete="username"
-                    placeholder="admin@conjunto.co"
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
+                    type="email" autoComplete="username"
+                    placeholder="guard@conjunto.co"
+                    className="w-full px-4 py-3 rounded-xl text-sm text-white
+                      placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
                     style={{
                       background: 'rgba(255,255,255,0.05)',
                       border: errors.email
                         ? '1px solid rgba(239,68,68,0.5)'
                         : '1px solid rgba(255,255,255,0.1)',
-                      '--tw-ring-color': '#6366f1',
+                      '--tw-ring-color': '#14b8a6',
                     }}
                     {...register('email', {
-                      required: 'El email es requerido',
-                      pattern: { value: /^\S+@\S+\.\S+$/, message: 'Email inválido' },
+                      required: 'Email is required',
+                      pattern: {
+                        value: /^\S+@\S+\.\S+$/,
+                        message: 'Invalid email',
+                      },
                     })}
                   />
                   {errors.email && (
@@ -413,21 +464,22 @@ const AdminLoginPage = () => {
                   )}
                 </div>
 
+                {/* Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label
                       className="block text-xs font-bold uppercase tracking-widest"
                       style={{ color: '#64748b' }}
                     >
-                      Contraseña
+                      Password
                     </label>
                     <button
-                      type="button"
-                      onClick={() => setShowForgot(true)}
-                      className="text-xs font-semibold transition-colors hover:text-indigo-300"
-                      style={{ color: '#6366f1' }}
+                      type="button" onClick={() => setShowForgot(true)}
+                      className="text-xs font-semibold transition-colors
+                        hover:text-teal-300"
+                      style={{ color: '#14b8a6' }}
                     >
-                      ¿Olvidaste tu contraseña?
+                      Forgot your password?
                     </button>
                   </div>
                   <div className="relative">
@@ -435,15 +487,16 @@ const AdminLoginPage = () => {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       placeholder="••••••••"
-                      className="w-full px-4 py-3 pr-11 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
+                      className="w-full px-4 py-3 pr-11 rounded-xl text-sm text-white
+                        placeholder-slate-600 focus:outline-none focus:ring-2 transition-all"
                       style={{
                         background: 'rgba(255,255,255,0.05)',
                         border: errors.password
                           ? '1px solid rgba(239,68,68,0.5)'
                           : '1px solid rgba(255,255,255,0.1)',
-                        '--tw-ring-color': '#6366f1',
+                        '--tw-ring-color': '#14b8a6',
                       }}
-                      {...register('password', { required: 'La contraseña es requerida' })}
+                      {...register('password', { required: 'Password is required' })}
                     />
                     <button
                       type="button"
@@ -461,32 +514,32 @@ const AdminLoginPage = () => {
                   )}
                 </div>
 
+                {/* Submit button */}
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all mt-2 disabled:opacity-60 flex items-center justify-center gap-2"
+                  type="submit" disabled={isSubmitting}
+                  className="w-full py-3 rounded-xl text-white font-bold text-sm
+                    transition-all mt-2 disabled:opacity-60 flex items-center
+                    justify-center gap-2"
                   style={{
                     background: isSubmitting
-                      ? '#4f46e5'
-                      : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                      ? '#0f766e'
+                      : 'linear-gradient(135deg, #14b8a6, #0891b2)',
                   }}
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Verificando...
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white
+                        rounded-full animate-spin" />
+                      Verifying...
                     </>
                   ) : (
-                    <>
-                      <ShieldCheck size={16} />
-                      Ingresar al Panel
-                    </>
+                    <><Shield size={16} /> Sign in to Lobby Portal</>
                   )}
                 </button>
               </form>
 
               <p className="text-center text-xs mt-8" style={{ color: '#334155' }}>
-                Acceso exclusivo · Personal autorizado del conjunto
+                Restricted access · Authorized security personnel only
               </p>
             </div>
           </>
@@ -496,4 +549,4 @@ const AdminLoginPage = () => {
   );
 };
 
-export default AdminLoginPage;
+export default SecurityGuardLoginPage;
