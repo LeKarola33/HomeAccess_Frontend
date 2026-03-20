@@ -18,10 +18,10 @@ const ROLE_COLORS = {
   propietario: 'bg-blue-100   text-blue-700   border border-blue-200',
   residente:   'bg-emerald-100 text-emerald-700 border border-emerald-200',
   portero:     'bg-amber-100  text-amber-700  border border-amber-200',
-  vigilante:   'bg-gray-100   text-gray-600   border border-gray-200',
+  //vigilante:   'bg-gray-100   text-gray-600   border border-gray-200',
 };
 
-const ROLES = ['admin', 'propietario', 'residente', 'portero', 'vigilante'];
+const ROLES = ['admin', 'propietario', 'residente', 'portero'];
 const TIPOS_DOC = ['CC', 'CE', 'PAS', 'TI'];
 
 const EMPTY_FORM = {
