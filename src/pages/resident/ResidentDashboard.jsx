@@ -3,9 +3,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Package, Car, Building2, Calendar } from 'lucide-react';
+import { Package, Car, Building2, Calendar, Users, Plus } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { getMyPackages, getMyVehicles, getEvents } from '@/api/resident.api';
+import { getMyPackages, getMyVehicles, getEvents, getMyVisitors } from '@/api/resident.api';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -24,10 +24,11 @@ const StatCard = ({ icon: Icon, label, value, color, bg }) => (
 
 const ResidentDashboard = () => {
   const { user } = useAuthStore();
-  const [paquetes, setPaquetes]   = useState([]);
-  const [vehiculos, setVehiculos] = useState([]);
-  const [eventos, setEventos]     = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [paquetes, setPaquetes]     = useState([]);
+  const [vehiculos, setVehiculos]   = useState([]);
+  const [eventos, setEventos]       = useState([]);
+  const [visitantes, setVisitantes] = useState([]);
+  const [loading, setLoading]       = useState(true);
   const today = format(new Date(), "EEEE d 'de' MMMM", { locale: es });
 
   useEffect(() => {
@@ -35,10 +36,12 @@ const ResidentDashboard = () => {
       getMyPackages({ status: 'en_porteria' }),
       getMyVehicles(),
       getEvents(),
-    ]).then(([pkg, veh, evt]) => {
-      setPaquetes(pkg.data?.packages || []);
+      getMyVisitors(),
+    ]).then(([pkg, veh, evt, vis]) => {
+      setPaquetes(pkg.data?.packages  || []);
       setVehiculos(veh.data?.vehicles || []);
       setEventos(evt.data?.upcoming   || []);
+      setVisitantes((vis.data?.visitors || []).filter(v => v.estado === 'pendiente'));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -61,8 +64,8 @@ const ResidentDashboard = () => {
           value={vehiculos.length} bg="bg-blue-500"   color="text-white" />
         <StatCard icon={Building2} label="Próximos eventos"
           value={eventos.length}   bg="bg-violet-500" color="text-white" />
-        <StatCard icon={Calendar}  label="Mi unidad"
-          value={user?.unidad || '—'} bg="bg-green-500" color="text-white" />
+        <StatCard icon={Users}    label="Visitantes esperados"
+          value={visitantes.length} bg="bg-green-500" color="text-white" />
       </div>
 
       {/* Paquetes pendientes */}
@@ -131,6 +134,34 @@ const ResidentDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Acceso rápido — Registrar visitante */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center
+              justify-center text-xl">👤</div>
+            <div>
+              <p className="text-gray-800 font-semibold text-sm">Registrar visitante</p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Pre-autoriza a tus visitantes para agilizar su ingreso al conjunto
+              </p>
+            </div>
+          </div>
+          <a href="/residente/visitantes"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700
+              text-white rounded-lg text-sm font-semibold transition-colors shrink-0">
+            <Plus size={15} /> Registrar
+          </a>
+        </div>
+        {visitantes.length > 0 && (
+          <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
+            <p className="text-xs text-gray-500 font-medium">
+              🔵 Tienes {visitantes.length} visitante(s) esperado(s) próximamente
+            </p>
+          </div>
+        )}
+      </div>
 
       {!loading && paquetes.length === 0 && eventos.length === 0 && (
         <div className="text-center py-16 bg-white border border-gray-200 rounded-xl">

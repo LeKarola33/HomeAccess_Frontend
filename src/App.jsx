@@ -61,6 +61,7 @@ import ResidentPackages    from '@/pages/resident/ResidentPackages';
 import ResidentVehicles    from '@/pages/resident/ResidentVehicles';
 import ResidentCommonAreas from '@/pages/resident/ResidentCommonAreas';
 import ResidentEvents      from '@/pages/resident/ResidentEvents';
+import ResidentVisitors    from '@/pages/resident/ResidentVisitors';
 
 const App = () => {
   return (
@@ -78,6 +79,7 @@ const App = () => {
         <Route element={<PrivateRoute roles={['residente', 'propietario']} />}>
           <Route element={<ResidentLayout />}>
             <Route path="/residente/inicio"        element={<ResidentDashboard />} />
+            <Route path="/residente/visitantes"    element={<ResidentVisitors />} />
             <Route path="/residente/paquetes"      element={<ResidentPackages />} />
             <Route path="/residente/vehiculos"     element={<ResidentVehicles />} />
             <Route path="/residente/areas-comunes" element={<ResidentCommonAreas />} />
@@ -99,7 +101,7 @@ const App = () => {
             <Route path="/unidades"     element={<UnitsPage />} />
             <Route path="/unidades/:id" element={<UnitDetailPage />} />
 
-            <Route element={<PrivateRoute roles={['admin', 'portero', 'vigilante']} />}>
+            <Route element={<PrivateRoute roles={['admin', 'portero']} />}>
               <Route path="/control-acceso" element={<AccessLogPage />} />
             </Route>
 
@@ -109,7 +111,7 @@ const App = () => {
               <Route path="/areas-comunes" element={<CommonAreasPage />} />
             </Route>
 
-            <Route element={<PrivateRoute roles={['admin', 'portero', 'vigilante']} />}>
+            <Route element={<PrivateRoute roles={['admin', 'portero']} />}>
               <Route path="/parqueadero" element={<ParkingPage />} />
             </Route>
 
@@ -123,8 +125,8 @@ const App = () => {
         </Route>
 
         {/* ── SECURITY GUARD (layout propio) ───────────────── */}
-        <Route element={<PrivateRoute roles={['securityguard', 'admin']} />}>
-          <Route element={<SecurityGuardLayout />}>
+           <Route element={<PrivateRoute roles={['portero', 'admin']} />}>
+            <Route element={<SecurityGuardLayout />}>
             <Route path="/securityguard/access-logs"        element={<AccessLogsPage />} />
             <Route path="/securityguard/access-logs/active" element={<ActiveVisitorsPage />} />
             <Route path="/securityguard/packages"           element={<SGPackagesPage />} />
