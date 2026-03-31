@@ -1,50 +1,70 @@
 /**
  * src/pages/resident/ResidentVisitors.jsx
- * El residente pre-autoriza visitantes esperados.
- * El portero los ve en su panel al registrar accesos.
  */
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Users, Plus, X, RefreshCw, Clock, CheckCircle } from 'lucide-react';
+import { Users, Plus, X, RefreshCw, CheckCircle, Pencil } from 'lucide-react';
 import { getMyVisitors, registerVisitor, cancelVisitor } from '@/api/resident.api';
+import apiClient from '@/api/apiClient';
 
 const ESTADO_CFG = {
   pendiente: { label: 'Esperado',  cls: 'bg-blue-100 text-blue-700 border border-blue-200',    dot: 'bg-blue-500' },
   ingresado: { label: 'Ingresó',   cls: 'bg-green-100 text-green-700 border border-green-200', dot: 'bg-green-500' },
   cancelado: { label: 'Cancelado', cls: 'bg-gray-100 text-gray-500 border border-gray-200',    dot: 'bg-gray-400' },
-  vencido:   { label: 'Vencido',   cls: 'bg-red-100 text-red-600 border border-red-200',       dot: 'bg-red-400' },
 };
 
-// ── Modal nuevo visitante ─────────────────────────────────────
-const ModalVisitante = ({ onClose, onSuccess }) => {
-  const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: { tipo: 'visita', fecha_visita: new Date().toISOString().split('T')[0] },
+const TIPO_LABEL = {
+  visita: '👤 Visita', proveedor: '🔧 Proveedor',
+  delivery: '📦 Delivery', empleado: '🧹 Empleado',
+};
+
+// ── Modal registrar / editar visitante ────────────────────────
+const ModalVisitante = ({ onClose, onSuccess, visitante = null, miUnidad = null }) => {
+  const esEdicion = !!visitante;
+  const [loading, setLoading]   = useState(false);
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+    defaultValues: visitante ? {
+      nombre_visitante: visitante.nombre_visitante,
+      doc_visitante:    visitante.doc_visitante || '',
+      tipo:             visitante.tipo,
+      fecha_visita:     visitante.fecha_visita
+        ? new Date(visitante.fecha_visita).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
+      observaciones:    visitante.observaciones || '',
+    } : {
+      tipo: 'visita',
+      fecha_visita: new Date().toISOString().split('T')[0],
+    },
   });
 
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      await registerVisitor(data);
+      if (esEdicion) {
+        await apiClient.patch(`/resident/visitors/${visitante._id}`, data);
+      } else {
+        await registerVisitor(data);
+      }
       onSuccess();
     } catch (e) {
-      alert(e.response?.data?.message || 'Error al registrar el visitante');
+      alert(e.response?.data?.message || 'Error al guardar el visitante');
     } finally { setLoading(false); }
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50
       flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-gray-200
-        w-full max-w-md shadow-xl">
+      <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md shadow-xl">
 
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center
-              justify-center text-xl">👤</div>
+            <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-xl">
+              {esEdicion ? '✏️' : '👤'}
+            </div>
             <h2 className="text-gray-900 font-semibold text-lg">
-              Registrar Visitante
+              {esEdicion ? 'Editar Visitante' : 'Registrar Visitante'}
             </h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
@@ -83,7 +103,27 @@ const ModalVisitante = ({ onClose, onSuccess }) => {
             />
           </div>
 
-          {/* Tipo de visita + fecha */}
+          {/* Apartamento destino — automático */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Apartamento destino
+            </label>
+            <div className={`w-full border rounded-lg px-3 py-2.5 text-sm flex items-center gap-2
+              ${miUnidad
+                ? 'bg-blue-50 border-blue-200 text-blue-800'
+                : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+              <span>🏠</span>
+              {miUnidad ? (
+                <span className="font-semibold">
+                  {miUnidad.torre ? `Torre ${miUnidad.torre} - ` : ''}Apto {miUnidad.numero}
+                </span>
+              ) : (
+                <span className="italic text-xs">Sin unidad asignada — contacta a administración</span>
+              )}
+            </div>
+          </div>
+
+          {/* Tipo + Fecha */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -135,7 +175,9 @@ const ModalVisitante = ({ onClose, onSuccess }) => {
             <button type="submit" disabled={loading}
               className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
                 rounded-lg text-sm font-semibold disabled:opacity-60 transition-colors">
-              {loading ? 'Guardando...' : 'Registrar Visitante'}
+              {loading
+                ? 'Guardando...'
+                : esEdicion ? 'Guardar cambios' : 'Registrar Visitante'}
             </button>
           </div>
         </form>
@@ -146,10 +188,19 @@ const ModalVisitante = ({ onClose, onSuccess }) => {
 
 // ── Página principal ──────────────────────────────────────────
 const ResidentVisitors = () => {
-  const [visitantes, setVisitantes]   = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [modal, setModal]             = useState(false);
-  const [filtro, setFiltro]           = useState('todos');
+  const [visitantes, setVisitantes]       = useState([]);
+  const [loading, setLoading]             = useState(false);
+  const [modal, setModal]                 = useState(false);
+  const [editando, setEditando]           = useState(null);
+  const [filtro, setFiltro]               = useState('todos');
+  const [miUnidad, setMiUnidad]           = useState(null);
+
+  // Cargar unidad una sola vez al montar la página
+  useEffect(() => {
+    apiClient.get('/resident/my-unit')
+      .then(r => setMiUnidad(r.data?.data?.unit || null))
+      .catch(() => {});
+  }, []);
 
   const cargar = async () => {
     setLoading(true);
@@ -164,10 +215,8 @@ const ResidentVisitors = () => {
 
   const handleCancelar = async (id) => {
     if (!confirm('¿Cancelar esta pre-autorización?')) return;
-    try {
-      await cancelVisitor(id);
-      cargar();
-    } catch { alert('Error al cancelar'); }
+    try { await cancelVisitor(id); cargar(); }
+    catch { alert('Error al cancelar'); }
   };
 
   const ahora = new Date();
@@ -179,11 +228,6 @@ const ResidentVisitors = () => {
         if (filtro === 'cancelado') return v.estado === 'cancelado';
         return true;
       });
-
-  const TIPO_LABEL = {
-    visita: '👤 Visita', proveedor: '🔧 Proveedor',
-    delivery: '📦 Delivery', empleado: '🧹 Empleado',
-  };
 
   return (
     <div className="p-6 min-h-screen bg-gray-50">
@@ -197,7 +241,7 @@ const ResidentVisitors = () => {
             Pre-autoriza a tus visitantes para agilizar su ingreso
           </p>
         </div>
-        <button onClick={() => setModal(true)}
+        <button onClick={() => { setEditando(null); setModal(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600
             hover:bg-blue-700 text-white rounded-lg text-sm font-semibold
             transition-colors shadow-sm">
@@ -249,7 +293,7 @@ const ResidentVisitors = () => {
           <p className="text-gray-300 text-sm mt-1">
             Registra a tus visitantes esperados para agilizar su ingreso
           </p>
-          <button onClick={() => setModal(true)}
+          <button onClick={() => { setEditando(null); setModal(true); }}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg
               text-sm font-medium hover:bg-blue-700 transition-colors">
             + Registrar primer visitante
@@ -258,8 +302,8 @@ const ResidentVisitors = () => {
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           {/* Encabezados */}
-          <div className="grid grid-cols-5 px-5 py-3 border-b border-gray-100 bg-gray-50">
-            {['Visitante', 'Tipo', 'Fecha esperada', 'Estado', 'Acción'].map(h => (
+          <div className="grid grid-cols-6 px-5 py-3 border-b border-gray-100 bg-gray-50">
+            {['Visitante', 'Apartamento', 'Tipo', 'Fecha esperada', 'Estado', 'Acción'].map(h => (
               <p key={h} className="text-xs font-semibold text-gray-400
                 uppercase tracking-wider">{h}</p>
             ))}
@@ -277,38 +321,42 @@ const ResidentVisitors = () => {
 
             return (
               <div key={v._id}
-                className={`grid grid-cols-5 px-5 py-4 items-center
+                className={`grid grid-cols-6 px-5 py-4 items-center
                   hover:bg-gray-50 transition-colors
                   ${idx < filtrados.length - 1 ? 'border-b border-gray-100' : ''}`}>
 
                 {/* Visitante */}
                 <div>
-                  <p className="text-gray-800 text-sm font-medium">
-                    {v.nombre_visitante}
-                  </p>
+                  <p className="text-gray-800 text-sm font-medium">{v.nombre_visitante}</p>
                   {v.doc_visitante && (
                     <p className="text-gray-400 text-xs">{v.doc_visitante}</p>
                   )}
                   {v.observaciones && (
-                    <p className="text-gray-400 text-xs truncate max-w-[160px]">
-                      {v.observaciones}
-                    </p>
+                    <p className="text-gray-400 text-xs truncate max-w-[140px]">{v.observaciones}</p>
+                  )}
+                </div>
+
+                {/* Apartamento */}
+                <div>
+                  {v.unit_destino ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold
+                      px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      🏠 {v.unit_destino.torre ? `Torre ${v.unit_destino.torre} - ` : ''}Apto {v.unit_destino.numero}
+                    </span>
+                  ) : (
+                    <p className="text-gray-400 text-xs">—</p>
                   )}
                 </div>
 
                 {/* Tipo */}
-                <p className="text-gray-600 text-sm">
-                  {TIPO_LABEL[v.tipo] || v.tipo}
-                </p>
+                <p className="text-gray-600 text-sm">{TIPO_LABEL[v.tipo] || v.tipo}</p>
 
                 {/* Fecha */}
                 <div>
                   <p className="text-gray-600 text-sm">{fechaVisita}</p>
                   {esHoy && (
                     <span className="text-xs font-semibold text-orange-600
-                      bg-orange-50 px-1.5 py-0.5 rounded-full">
-                      Hoy
-                    </span>
+                      bg-orange-50 px-1.5 py-0.5 rounded-full">Hoy</span>
                   )}
                 </div>
 
@@ -319,15 +367,25 @@ const ResidentVisitors = () => {
                   {estadoCfg.label}
                 </span>
 
-                {/* Acción */}
-                <div>
+                {/* Acciones */}
+                <div className="flex items-center gap-2">
                   {v.estado === 'pendiente' && (
-                    <button onClick={() => handleCancelar(v._id)}
-                      className="text-xs text-red-500 hover:text-red-700
-                        hover:bg-red-50 px-3 py-1.5 rounded-lg border
-                        border-red-200 transition-colors">
-                      Cancelar
-                    </button>
+                    <>
+                      <button
+                        onClick={() => { setEditando(v); setModal(true); }}
+                        title="Editar"
+                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg
+                          border border-blue-200 transition-colors">
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleCancelar(v._id)}
+                        className="text-xs text-red-500 hover:text-red-700
+                          hover:bg-red-50 px-2.5 py-1.5 rounded-lg border
+                          border-red-200 transition-colors">
+                        Cancelar
+                      </button>
+                    </>
                   )}
                   {v.estado === 'ingresado' && (
                     <span className="text-xs text-green-600 flex items-center gap-1">
@@ -343,8 +401,10 @@ const ResidentVisitors = () => {
 
       {modal && (
         <ModalVisitante
-          onClose={() => setModal(false)}
-          onSuccess={() => { setModal(false); cargar(); }}
+          visitante={editando}
+          miUnidad={miUnidad}
+          onClose={() => { setModal(false); setEditando(null); }}
+          onSuccess={() => { setModal(false); setEditando(null); cargar(); }}
         />
       )}
     </div>

@@ -16,6 +16,7 @@ const NAV = [
     items: [
       { to: '/securityguard/access-logs',        icon: UserCheck, label: 'Registro de Accesos' },
       { to: '/securityguard/access-logs/active', icon: Users,     label: 'Adentro Ahora' },
+      { to: '/securityguard/visitors', icon: Users, label: 'Visitantes Esperados' }
     ],
   },
   {

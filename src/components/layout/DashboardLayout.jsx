@@ -1,40 +1,26 @@
 /**
  * HomeAccess - Layout Principal del Dashboard
- * =============================================
- * Estructura: Sidebar fijo (izquierda) + área de contenido principal.
- * Usa Outlet de React Router para renderizar las páginas hijas.
  */
 
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  DoorOpen,
-  Package,
-  Menu,
-  X,
-  LogOut,
-  ChevronRight,
-  Trees,
-  Car,
-  CalendarDays,
-  CarFront
+  LayoutDashboard, Users, Building2, DoorOpen, Package,
+  Menu, X, LogOut, ChevronRight, Trees, Car, CalendarDays, CarFront, UserCheck,
 } from 'lucide-react';
-
 import { useAuthStore } from '@/store/authStore';
 
 const NAV_ITEMS = [
-  { to: '/dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
-  { to: '/usuarios',      label: 'Usuarios',        icon: Users,         roles: ['admin'] },
-  { to: '/unidades',      label: 'Unidades',        icon: Building2 },
-  { to: '/control-acceso',label: 'Control Acceso',  icon: DoorOpen,      roles: ['admin', 'portero'] },
-  { to: '/paquetes',      label: 'Paquetes',        icon: Package },
-  { to: '/areas-comunes', label: 'Áreas Comunes',   icon: Trees,         roles: ['admin', 'residente'] },
-  { to: '/parqueadero',   label: 'Parqueadero',     icon: Car,           roles: ['admin', 'portero'] },
-  { to: '/vehiculos',     label: 'Vehículos',       icon: CarFront,      roles: ['admin', 'residente'] },
-  { to: '/eventos',       label: 'Eventos',         icon: CalendarDays },
+  { to: '/dashboard',      label: 'Dashboard',       icon: LayoutDashboard },
+  { to: '/usuarios',       label: 'Usuarios',         icon: Users,       roles: ['admin'] },
+  { to: '/unidades',       label: 'Unidades',         icon: Building2 },
+  { to: '/control-acceso', label: 'Control Acceso',   icon: DoorOpen,    roles: ['admin', 'portero'] },
+  { to: '/paquetes',       label: 'Paquetes',         icon: Package },
+  { to: '/areas-comunes',  label: 'Áreas Comunes',    icon: Trees,       roles: ['admin', 'residente'] },
+  { to: '/parqueadero',    label: 'Parqueadero',      icon: Car,         roles: ['admin', 'portero'] },
+  { to: '/vehiculos',      label: 'Vehículos',        icon: CarFront,    roles: ['admin', 'residente'] },
+  { to: '/eventos',        label: 'Eventos',          icon: CalendarDays },
+  { to: '/visitantes',     label: 'Visitantes',       icon: UserCheck,   roles: ['admin'] },
 ];
 
 const DashboardLayout = () => {
@@ -44,21 +30,19 @@ const DashboardLayout = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/admin/login'); // ← redirige al login del admin
+    navigate('/admin/login');
   };
 
   const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !item.roles || item.roles.includes(user?.role)
+    item => !item.roles || item.roles.includes(user?.role)
   );
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-      {/* ── SIDEBAR ── */}
-      <aside
-        className={`flex flex-col bg-slate-900 text-white transition-all duration-300
-          ${sidebarOpen ? 'w-64' : 'w-16'}`}
-      >
+      <aside className={`flex flex-col bg-slate-900 text-white transition-all duration-300
+        ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
           {sidebarOpen && (
             <div>
@@ -68,26 +52,21 @@ const DashboardLayout = () => {
               </p>
             </div>
           )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1.5 rounded hover:bg-slate-700 transition-colors">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
           {visibleNavItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
+            <NavLink key={to} to={to}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-colors
                 ${isActive
                   ? 'bg-blue-600 text-white'
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`
-              }
-            >
+              }>
               <Icon size={20} className="flex-shrink-0" />
               {sidebarOpen && <span className="text-sm font-medium">{label}</span>}
             </NavLink>
@@ -107,27 +86,22 @@ const DashboardLayout = () => {
                 </p>
                 <p className="text-xs text-slate-400 capitalize">{user?.role}</p>
               </div>
-              <button
-                onClick={handleLogout}
+              <button onClick={handleLogout}
                 className="p-1.5 hover:bg-slate-700 rounded transition-colors"
-                title="Cerrar sesión"
-              >
+                title="Cerrar sesión">
                 <LogOut size={16} />
               </button>
             </div>
           ) : (
-            <button
-              onClick={handleLogout}
+            <button onClick={handleLogout}
               className="w-full flex justify-center p-2 hover:bg-slate-700 rounded"
-              title="Cerrar sesión"
-            >
+              title="Cerrar sesión">
               <LogOut size={18} />
             </button>
           )}
         </div>
       </aside>
 
-      {/* ── CONTENIDO PRINCIPAL ── */}
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white border-b border-gray-200 px-6 py-4
           flex items-center justify-between">
