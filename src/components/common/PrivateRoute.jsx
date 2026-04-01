@@ -7,8 +7,8 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ShieldX } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
-const ADMIN_ROLES          = ['admin', 'portero', 'vigilante'];
-const SECURITY_GUARD_ROLES = ['securityguard'];
+const ADMIN_ROLES          = ['admin'];
+const PORTERO_ROLES        = ['portero'];
 const RESIDENT_ROLES       = ['residente', 'propietario'];
 
 const PrivateRoute = ({ roles }) => {
@@ -22,41 +22,42 @@ const PrivateRoute = ({ roles }) => {
 
     if (path.startsWith('/securityguard')) {
       loginPath = '/securityguard/login';
-    } else if (
-      path.startsWith('/dashboard') ||
-      path.startsWith('/usuarios') ||
-      path.startsWith('/unidades') ||
-      ADMIN_ROLES.includes(user?.role)
-    ) {
+    } else if (path.startsWith('/dashboard') || path.startsWith('/usuarios') ||
+               path.startsWith('/unidades') || ADMIN_ROLES.includes(user?.role)) {
       loginPath = '/admin/login';
     }
 
     return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
-  // ── 2. Residente/propietario que intenta ir al admin → redirigir a su portal ──
-  if (
-    !roles &&
-    RESIDENT_ROLES.includes(user.role) &&
-    !location.pathname.startsWith('/residente')
-  ) {
+  // ── 2. Portero que intenta ir al dashboard del admin → redirigir a su portal ──
+  if (!roles && PORTERO_ROLES.includes(user.role) &&
+      !location.pathname.startsWith('/securityguard')) {
+    return <Navigate to="/securityguard/access-logs" replace />;
+  }
+
+  // ── 3. Residente que intenta ir al dashboard del admin → redirigir a su portal ──
+  if (!roles && RESIDENT_ROLES.includes(user.role) &&
+      !location.pathname.startsWith('/residente')) {
     return <Navigate to="/residente/inicio" replace />;
   }
 
-  // ── 3. Autenticado pero sin el rol requerido ──
+  // ── 4. Autenticado pero sin el rol requerido ──
   if (roles && !roles.includes(user.role)) {
-    // Si es residente y trata de ir a ruta de admin → su portal
+    // Portero → su portal
+    if (PORTERO_ROLES.includes(user.role)) {
+      return <Navigate to="/securityguard/access-logs" replace />;
+    }
+    // Residente → su portal
     if (RESIDENT_ROLES.includes(user.role)) {
       return <Navigate to="/residente/inicio" replace />;
     }
-    // Si es security guard → su portal
-    if (SECURITY_GUARD_ROLES.includes(user.role)) {
-      return <Navigate to="/securityguard/access-logs" replace />;
-    }
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh]
+        text-center px-4">
+        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center
+          justify-center mb-4">
           <ShieldX size={32} className="text-red-400" />
         </div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Acceso Denegado</h2>

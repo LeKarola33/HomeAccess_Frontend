@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
-  Home, Package, Car, Building2, Calendar,
+  Home, Package, Car, Building2, Calendar, Users,
   LogOut, Menu, X, ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -14,6 +14,7 @@ import logo from '@/img/logo.jpeg';
 
 const NAV_ITEMS = [
   { to: '/residente/inicio',       icon: Home,      label: 'Inicio' },
+  { to: '/residente/visitantes',   icon: Users,     label: 'Mis Visitantes' },
   { to: '/residente/paquetes',     icon: Package,   label: 'Mis Paquetes' },
   { to: '/residente/vehiculos',    icon: Car,       label: 'Mis Vehículos' },
   { to: '/residente/areas-comunes',icon: Building2, label: 'Áreas Comunes' },
