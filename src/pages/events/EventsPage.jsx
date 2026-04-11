@@ -1,23 +1,21 @@
 /**
- * EventsPage.jsx
- * Módulo de eventos del conjunto.
- * Ruta: /eventos  (todos los autenticados)
+ * EventsPage.jsx — Compartido por admin, portero y residente
+ * Ruta: /eventos  (admin/portero) | /residente/eventos (residente)
  *
  * ADMIN:    crea, edita, cambia estado, cancela
- * RESIDENTE: ve eventos y confirma asistencia (obligatorios)
+ * PORTERO:  solo lectura
+ * RESIDENTE: ve eventos y confirma asistencia
  */
 
 import { useState, useEffect, useCallback } from 'react';
 
-// ─── Servicio API ─────────────────────────────────────────────────────────────
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-// ─── Helper: leer token desde homeaccess-auth ────────────────────────────────
+
 const getToken = () => {
   try {
     const raw = localStorage.getItem('homeaccess-auth');
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.accessToken || null;
+    return JSON.parse(raw)?.state?.accessToken || null;
   } catch { return null; }
 };
 
@@ -30,20 +28,17 @@ const api = async (path, opts = {}) => {
 };
 
 const getEvents    = (params = {}) => api(`/events?${new URLSearchParams(params)}`);
-const getUpcoming  = () => api('/events/proximos');
-const createEvent  = (data) => api('/events', { method: 'POST', body: JSON.stringify(data) });
-const updateEvent  = (id, data) => api(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-const cancelEvent  = (id, motivo) => api(`/events/${id}/cancelar`, { method: 'PATCH', body: JSON.stringify({ motivo }) });
-const changeStatus = (id, estado) => api(`/events/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) });
+const createEvent  = (data)        => api('/events', { method: 'POST', body: JSON.stringify(data) });
+const updateEvent  = (id, data)    => api(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+const cancelEvent  = (id, motivo)  => api(`/events/${id}/cancelar`, { method: 'PATCH', body: JSON.stringify({ motivo }) });
+const changeStatus = (id, estado)  => api(`/events/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) });
 const confirmAttendance = (id, data) => api(`/events/${id}/confirmar`, { method: 'POST', body: JSON.stringify(data) });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const useAuth = () => {
   try {
     const raw = localStorage.getItem('homeaccess-auth');
     if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.user || {};
+    return JSON.parse(raw)?.state?.user || {};
   } catch { return {}; }
 };
 
@@ -51,22 +46,27 @@ const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-CO', { we
 const formatTime = (iso) => iso ? new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
 
 const STATUS_CFG = {
-  programado:  { label: 'Programado',  bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500'  },
-  en_curso:    { label: 'En curso',    bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500' },
-  finalizado:  { label: 'Finalizado',  bg: 'bg-slate-100',  text: 'text-slate-600',  dot: 'bg-slate-400'   },
-  cancelado:   { label: 'Cancelado',   bg: 'bg-red-100',    text: 'text-red-700',    dot: 'bg-red-400'     },
+  programado: { label: 'Programado', bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500' },
+  en_curso:   { label: 'En curso',   bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500' },
+  finalizado: { label: 'Finalizado', bg: 'bg-slate-100',  text: 'text-slate-600',  dot: 'bg-slate-400' },
+  cancelado:  { label: 'Cancelado',  bg: 'bg-red-100',    text: 'text-red-700',    dot: 'bg-red-400' },
 };
 
 const TYPE_CFG = {
-  obligatorio: { label: 'Obligatorio', bg: 'bg-rose-50',   text: 'text-rose-700',   icon: '⚠️' },
-  opcional:    { label: 'Opcional',    bg: 'bg-sky-50',    text: 'text-sky-700',    icon: '📌' },
+  obligatorio: { label: 'Obligatorio', bg: 'bg-rose-50', text: 'text-rose-700', icon: '⚠️' },
+  opcional:    { label: 'Opcional',    bg: 'bg-sky-50',  text: 'text-sky-700',  icon: '📌' },
 };
 
-const Spinner = () => <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />;
+const Spinner = () => (
+  <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+);
 
 const Toast = ({ msg, type, onClose }) => (
-  <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-sm shadow-2xl ${type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
-    {msg}<button onClick={onClose} className="ml-1 opacity-70 hover:opacity-100">✕</button>
+  <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3
+    rounded-xl text-white text-sm shadow-2xl
+    ${type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
+    {msg}
+    <button onClick={onClose} className="ml-1 opacity-70 hover:opacity-100">✕</button>
   </div>
 );
 
@@ -76,14 +76,17 @@ const Modal = ({ title, onClose, children }) => (
     <div className="relative z-50 bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between p-6 border-b border-slate-100">
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
-        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">✕</button>
+        <button onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
+          ✕
+        </button>
       </div>
       <div className="p-6">{children}</div>
     </div>
   </div>
 );
 
-// ─── EventFormModal ───────────────────────────────────────────────────────────
+// ── EventFormModal ─────────────────────────────────────────────
 const EventFormModal = ({ event, onClose, onSaved }) => {
   const isEditing = Boolean(event?._id);
   const [loading, setLoading] = useState(false);
@@ -92,8 +95,8 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
     titulo:      event?.titulo      || '',
     tipo:        event?.tipo        || 'obligatorio',
     descripcion: event?.descripcion || '',
-    fecha_inicio: event?.fecha_inicio ? event.fecha_inicio.slice(0,16) : '',
-    fecha_fin:    event?.fecha_fin    ? event.fecha_fin.slice(0,16)    : '',
+    fecha_inicio: event?.fecha_inicio ? event.fecha_inicio.slice(0, 16) : '',
+    fecha_fin:    event?.fecha_fin    ? event.fecha_fin.slice(0, 16)    : '',
     lugar:       event?.lugar       || '',
     cupo_maximo: event?.cupo_maximo || 0,
     requiere_confirmacion: event?.requiere_confirmacion ?? false,
@@ -104,11 +107,9 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.titulo || !form.fecha_inicio || !form.fecha_fin || !form.lugar) {
-      setError('Completa los campos obligatorios');
-      return;
+      setError('Completa los campos obligatorios'); return;
     }
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       isEditing ? await updateEvent(event._id, form) : await createEvent(form);
       onSaved(isEditing ? 'Evento actualizado' : 'Evento creado');
@@ -119,15 +120,17 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
   return (
     <Modal title={isEditing ? 'Editar evento' : 'Nuevo evento'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
-
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700">Título <span className="text-red-500">*</span></label>
           <input value={form.titulo} onChange={e => set('titulo', e.target.value)}
             className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400"
             placeholder="Ej: Asamblea Ordinaria 2025" />
         </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Tipo <span className="text-red-500">*</span></label>
@@ -139,39 +142,38 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Cupo máximo</label>
-            <input type="number" min="0" value={form.cupo_maximo} onChange={e => set('cupo_maximo', Number(e.target.value))}
+            <input type="number" min="0" value={form.cupo_maximo}
+              onChange={e => set('cupo_maximo', Number(e.target.value))}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
             <p className="text-xs text-slate-400">0 = sin límite</p>
           </div>
         </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Inicio <span className="text-red-500">*</span></label>
-            <input type="datetime-local" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)}
+            <input type="datetime-local" value={form.fecha_inicio}
+              onChange={e => set('fecha_inicio', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Fin <span className="text-red-500">*</span></label>
-            <input type="datetime-local" value={form.fecha_fin} onChange={e => set('fecha_fin', e.target.value)}
+            <input type="datetime-local" value={form.fecha_fin}
+              onChange={e => set('fecha_fin', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
           </div>
         </div>
-
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700">Lugar <span className="text-red-500">*</span></label>
           <input value={form.lugar} onChange={e => set('lugar', e.target.value)}
             className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400"
-            placeholder="Ej: Salón de Eventos, Virtual - Zoom" />
+            placeholder="Ej: Salón de Eventos" />
         </div>
-
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-slate-700">Descripción</label>
           <textarea value={form.descripcion} onChange={e => set('descripcion', e.target.value)} rows={3}
             className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 resize-none"
             placeholder="Detalles del evento..." />
         </div>
-
         {form.tipo === 'obligatorio' && (
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
             <div>
@@ -180,14 +182,18 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
             </div>
             <button type="button" onClick={() => set('requiere_confirmacion', !form.requiere_confirmacion)}
               className={`w-11 h-6 rounded-full transition-colors ${form.requiere_confirmacion ? 'bg-indigo-600' : 'bg-slate-300'}`}>
-              <span className={`block w-5 h-5 bg-white rounded-full shadow-sm transition-transform mx-0.5 ${form.requiere_confirmacion ? 'translate-x-5' : 'translate-x-0'}`} />
+              <span className={`block w-5 h-5 bg-white rounded-full shadow-sm transition-transform mx-0.5
+                ${form.requiere_confirmacion ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </div>
         )}
-
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200">Cancelar</button>
-          <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50">
+          <button type="button" onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200">
+            Cancelar
+          </button>
+          <button type="submit" disabled={loading}
+            className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50">
             {loading ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear evento'}
           </button>
         </div>
@@ -196,9 +202,9 @@ const EventFormModal = ({ event, onClose, onSaved }) => {
   );
 };
 
-// ─── CancelModal ──────────────────────────────────────────────────────────────
+// ── CancelModal ────────────────────────────────────────────────
 const CancelModal = ({ event, onClose, onDone }) => {
-  const [motivo, setMotivo] = useState('');
+  const [motivo,  setMotivo]  = useState('');
   const [loading, setLoading] = useState(false);
 
   const handle = async (e) => {
@@ -224,8 +230,12 @@ const CancelModal = ({ event, onClose, onDone }) => {
             placeholder="Explica el motivo de la cancelación..." />
         </div>
         <div className="flex gap-3">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl">No cancelar</button>
-          <button type="submit" disabled={loading || !motivo.trim()} className="flex-1 py-2.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 disabled:opacity-50">
+          <button type="button" onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl">
+            No cancelar
+          </button>
+          <button type="submit" disabled={loading || !motivo.trim()}
+            className="flex-1 py-2.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 disabled:opacity-50">
             {loading ? 'Cancelando...' : 'Cancelar evento'}
           </button>
         </div>
@@ -234,13 +244,13 @@ const CancelModal = ({ event, onClose, onDone }) => {
   );
 };
 
-// ─── ConfirmAttendanceModal ───────────────────────────────────────────────────
+// ── ConfirmAttendanceModal ─────────────────────────────────────
 const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
   const user = useAuth();
-  const [respuesta, setRespuesta] = useState('confirmado');
-  const [delegado,  setDelegado]  = useState('');
+  const [respuesta,     setRespuesta]     = useState('confirmado');
+  const [delegado,      setDelegado]      = useState('');
   const [justificacion, setJustificacion] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading,       setLoading]       = useState(false);
 
   const handle = async (e) => {
     e.preventDefault();
@@ -267,11 +277,10 @@ const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
           <p className="text-indigo-600">{formatDate(event.fecha_inicio)} · {formatTime(event.fecha_inicio)}</p>
           <p className="text-indigo-500">📍 {event.lugar}</p>
         </div>
-
         <div className="space-y-2">
           {[
-            { val: 'confirmado', label: '✅ Asistiré', desc: 'Confirmo mi asistencia' },
-            { val: 'declinado',  label: '❌ No asistiré', desc: 'No podré asistir' },
+            { val: 'confirmado', label: '✅ Asistiré',            desc: 'Confirmo mi asistencia' },
+            { val: 'declinado',  label: '❌ No asistiré',         desc: 'No podré asistir' },
             { val: 'delegado',   label: '👤 Envío representante', desc: 'Alguien irá en mi nombre' },
           ].map(({ val, label, desc }) => (
             <button key={val} type="button" onClick={() => setRespuesta(val)}
@@ -288,7 +297,6 @@ const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
             </button>
           ))}
         </div>
-
         {respuesta === 'delegado' && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Nombre del representante <span className="text-red-500">*</span></label>
@@ -297,7 +305,6 @@ const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
               placeholder="Nombre completo" />
           </div>
         )}
-
         {respuesta === 'declinado' && (
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-slate-700">Justificación (opcional)</label>
@@ -306,9 +313,11 @@ const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
               placeholder="Motivo de inasistencia..." />
           </div>
         )}
-
         <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl">Cancelar</button>
+          <button type="button" onClick={onClose}
+            className="flex-1 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl">
+            Cancelar
+          </button>
           <button type="submit" disabled={loading || (respuesta === 'delegado' && !delegado.trim())}
             className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50">
             {loading ? 'Enviando...' : 'Confirmar'}
@@ -319,22 +328,22 @@ const ConfirmAttendanceModal = ({ event, onClose, onDone }) => {
   );
 };
 
-// ─── EventCard ────────────────────────────────────────────────────────────────
-const EventCard = ({ event, isAdmin, onEdit, onCancel, onChangeStatus, onConfirm }) => {
-  const statusCfg = STATUS_CFG[event.estado] || STATUS_CFG.programado;
-  const typeCfg   = TYPE_CFG[event.tipo]     || TYPE_CFG.opcional;
+// ── EventCard ──────────────────────────────────────────────────
+const EventCard = ({ event, isAdmin, isResident, onEdit, onCancel, onChangeStatus, onConfirm }) => {
+  const statusCfg     = STATUS_CFG[event.estado] || STATUS_CFG.programado;
+  const typeCfg       = TYPE_CFG[event.tipo]     || TYPE_CFG.opcional;
   const isCancellable = ['programado', 'en_curso'].includes(event.estado);
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md ${event.estado === 'cancelado' ? 'opacity-60' : ''}`}>
-      {/* Top stripe */}
+    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden
+      transition-all hover:shadow-md ${event.estado === 'cancelado' ? 'opacity-60' : ''}`}>
       <div className={`h-1.5 w-full ${event.tipo === 'obligatorio' ? 'bg-rose-400' : 'bg-sky-400'}`} />
-
       <div className="p-5">
-        {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-slate-800 text-base leading-tight truncate">{event.titulo}</h3>
+            <h3 className="font-semibold text-slate-800 text-base leading-tight truncate">
+              {event.titulo}
+            </h3>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${typeCfg.bg} ${typeCfg.text}`}>
                 {typeCfg.icon} {typeCfg.label}
@@ -347,7 +356,6 @@ const EventCard = ({ event, isAdmin, onEdit, onCancel, onChangeStatus, onConfirm
           </div>
         </div>
 
-        {/* Fecha y lugar */}
         <div className="space-y-1.5 mb-4">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span>📅</span>
@@ -365,50 +373,54 @@ const EventCard = ({ event, isAdmin, onEdit, onCancel, onChangeStatus, onConfirm
           )}
         </div>
 
-        {/* Descripción */}
         {event.descripcion && (
           <p className="text-sm text-slate-400 mb-4 line-clamp-2">{event.descripcion}</p>
         )}
 
-        {/* Motivo cancelación */}
         {event.estado === 'cancelado' && event.motivo_cancelacion && (
           <div className="mb-4 p-2.5 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600">
             Cancelado: {event.motivo_cancelacion}
           </div>
         )}
 
-        {/* Confirmación para residentes */}
-        {event.tipo === 'obligatorio' && event.requiere_confirmacion && event.estado === 'programado' && !isAdmin && (
+        {/* Botón confirmar — solo residente */}
+        {isResident && event.tipo === 'obligatorio' &&
+          event.requiere_confirmacion && event.estado === 'programado' && (
           <button onClick={() => onConfirm(event)}
-            className="w-full mb-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded-xl border border-indigo-200 transition-colors">
+            className="w-full mb-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700
+              text-sm font-medium rounded-xl border border-indigo-200 transition-colors">
             ✋ Confirmar asistencia
           </button>
         )}
 
-        {/* Acciones admin */}
+        {/* Acciones — solo admin */}
         {isAdmin && (
           <div className="flex gap-2">
             {event.estado === 'programado' && (
               <>
                 <button onClick={() => onEdit(event)}
-                  className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 transition-colors">
+                  className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600
+                    text-xs font-medium rounded-lg border border-slate-200 transition-colors">
                   ✏️ Editar
                 </button>
                 <button onClick={() => onChangeStatus(event, 'en_curso')}
-                  className="flex-1 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-medium rounded-lg border border-emerald-200 transition-colors">
+                  className="flex-1 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700
+                    text-xs font-medium rounded-lg border border-emerald-200 transition-colors">
                   ▶ Iniciar
                 </button>
               </>
             )}
             {event.estado === 'en_curso' && (
               <button onClick={() => onChangeStatus(event, 'finalizado')}
-                className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 transition-colors">
+                className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600
+                  text-xs font-medium rounded-lg border border-slate-200 transition-colors">
                 ⏹ Finalizar
               </button>
             )}
             {isCancellable && (
               <button onClick={() => onCancel(event)}
-                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg border border-red-200 transition-colors">
+                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700
+                  text-xs font-medium rounded-lg border border-red-200 transition-colors">
                 ✕
               </button>
             )}
@@ -419,19 +431,20 @@ const EventCard = ({ event, isAdmin, onEdit, onCancel, onChangeStatus, onConfirm
   );
 };
 
-// ─── EventsPage ───────────────────────────────────────────────────────────────
+// ── EventsPage (principal) ─────────────────────────────────────
 export default function EventsPage() {
-  const user    = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const user       = useAuth();
+  const isAdmin    = user?.role === 'admin';
+  const isResident = ['residente', 'propietario'].includes(user?.role);
 
-  const [events,      setEvents]      = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [toast,       setToast]       = useState(null);
-  const [typeFilter,  setTypeFilter]  = useState('');
-  const [statusFilter,setStatusFilter]= useState('programado');
-  const [formModal,   setFormModal]   = useState(null);
-  const [cancelModal, setCancelModal] = useState(null);
-  const [confirmModal,setConfirmModal]= useState(null);
+  const [events,       setEvents]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [toast,        setToast]        = useState(null);
+  const [typeFilter,   setTypeFilter]   = useState('');
+  const [statusFilter, setStatusFilter] = useState('programado');
+  const [formModal,    setFormModal]    = useState(null);
+  const [cancelModal,  setCancelModal]  = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -460,23 +473,6 @@ export default function EventsPage() {
     } catch (err) { showToast(err.message, 'error'); }
   };
 
-  const handleSaved = (msg) => {
-    setFormModal(null);
-    showToast(msg);
-    load();
-  };
-
-  const handleCancelDone = (msg) => {
-    setCancelModal(null);
-    showToast(msg);
-    load();
-  };
-
-  const handleConfirmDone = (msg) => {
-    setConfirmModal(null);
-    showToast(msg);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -484,11 +480,14 @@ export default function EventsPage() {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-800">Eventos</h1>
-            <p className="text-sm text-slate-400">{events.length} evento{events.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm text-slate-400">
+              {events.length} evento{events.length !== 1 ? 's' : ''}
+            </p>
           </div>
           {isAdmin && (
             <button onClick={() => setFormModal('new')}
-              className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+              className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
+                rounded-xl hover:bg-indigo-700 transition-colors">
               + Nuevo evento
             </button>
           )}
@@ -498,7 +497,6 @@ export default function EventsPage() {
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {/* Filtros */}
         <div className="flex gap-2 flex-wrap">
-          {/* Tipo */}
           {[
             { val: '',            label: 'Todos' },
             { val: 'obligatorio', label: '⚠️ Obligatorios' },
@@ -506,14 +504,15 @@ export default function EventsPage() {
           ].map(({ val, label }) => (
             <button key={val} onClick={() => setTypeFilter(val)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-                ${typeFilter === val ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
+                ${typeFilter === val
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
               {label}
             </button>
           ))}
 
           <div className="w-px bg-slate-200 mx-1 self-stretch" />
 
-          {/* Estado */}
           {[
             { val: 'programado', label: 'Programados' },
             { val: 'en_curso',   label: 'En curso' },
@@ -523,7 +522,9 @@ export default function EventsPage() {
           ].map(({ val, label }) => (
             <button key={val} onClick={() => setStatusFilter(val)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-                ${statusFilter === val ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'}`}>
+                ${statusFilter === val
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'}`}>
               {label}
             </button>
           ))}
@@ -537,11 +538,14 @@ export default function EventsPage() {
             <div className="text-5xl mb-3">📅</div>
             <p className="font-medium text-slate-600">Sin eventos</p>
             <p className="text-sm text-slate-400 mt-1">
-              {isAdmin ? 'Crea el primer evento del conjunto' : 'No hay eventos programados por ahora'}
+              {isAdmin
+                ? 'Crea el primer evento del conjunto'
+                : 'No hay eventos programados por ahora'}
             </p>
             {isAdmin && (
               <button onClick={() => setFormModal('new')}
-                className="mt-4 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700">
+                className="mt-4 px-4 py-2.5 bg-indigo-600 text-white text-sm
+                  font-medium rounded-xl hover:bg-indigo-700">
                 + Crear evento
               </button>
             )}
@@ -553,6 +557,7 @@ export default function EventsPage() {
                 key={ev._id}
                 event={ev}
                 isAdmin={isAdmin}
+                isResident={isResident}
                 onEdit={setFormModal}
                 onCancel={setCancelModal}
                 onChangeStatus={handleChangeStatus}
@@ -563,16 +568,27 @@ export default function EventsPage() {
         )}
       </div>
 
-      {/* Modals */}
       {formModal && (
         <EventFormModal
           event={formModal === 'new' ? null : formModal}
           onClose={() => setFormModal(null)}
-          onSaved={handleSaved}
+          onSaved={(msg) => { setFormModal(null); showToast(msg); load(); }}
         />
       )}
-      {cancelModal && <CancelModal event={cancelModal} onClose={() => setCancelModal(null)} onDone={handleCancelDone} />}
-      {confirmModal && <ConfirmAttendanceModal event={confirmModal} onClose={() => setConfirmModal(null)} onDone={handleConfirmDone} />}
+      {cancelModal && (
+        <CancelModal
+          event={cancelModal}
+          onClose={() => setCancelModal(null)}
+          onDone={(msg) => { setCancelModal(null); showToast(msg); load(); }}
+        />
+      )}
+      {confirmModal && (
+        <ConfirmAttendanceModal
+          event={confirmModal}
+          onClose={() => setConfirmModal(null)}
+          onDone={(msg) => { setConfirmModal(null); showToast(msg); }}
+        />
+      )}
 
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
     </div>
