@@ -4,7 +4,6 @@
  * Acceso exclusivo para: admin, portero, residente.
  * Ruta: /admin/login
  */
-
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
