@@ -10,6 +10,7 @@ import LoginPage              from '@/pages/auth/LoginPage';
 import AdminLoginPage         from '@/pages/auth/AdminLoginPage';
 import RegisterPage           from '@/pages/auth/RegisterPage';
 import SecurityGuardLoginPage from '@/pages/auth/SecurityGuardLoginPage';
+import ResetPasswordPage      from '@/pages/auth/ResetPasswordPage';
 
 import DashboardPage   from '@/pages/dashboard/DashboardPage';
 import UsersPage       from '@/pages/users/UsersPage';
@@ -20,7 +21,7 @@ import AccessLogPage   from '@/pages/access/AccessLogPage';
 import PackagesPage    from '@/pages/packages/PackagesPage';
 import CommonAreasPage from '@/pages/common-areas/CommonAreasPage';
 import ParkingPage     from '@/pages/parking/ParkingPage';
-import EventsPage      from '@/pages/events/EventsPage';
+import EventsPage      from '@/pages/events/EventsPage';   // ← usado por TODOS los roles
 import VehiclesPage    from '@/pages/vehicles/VehiclesPage';
 import VisitorsAdminPage from '@/pages/visitors/VisitorsAdminPage';
 
@@ -29,19 +30,13 @@ import AccessLogsPage        from '@/pages/securityguard/AccessLogsPage';
 import ActiveVisitorsPage    from '@/pages/securityguard/ActiveVisitorsPage';
 import SGPackagesPage        from '@/pages/securityguard/PackagesPage';
 import PreAuthorizedVisitors from '@/pages/securityguard/PreAuthorizedVisitors';
-import {
-  UnitsPage       as SGUnitsPage,
-  CommonAreasPage as SGCommonAreasPage,
-  ParkingPage     as SGParkingPage,
-  EventsPage      as SGEventsPage,
-} from '@/pages/securityguard/InfoPages';
+import { ParkingPage as SGParkingPage } from '@/pages/securityguard/InfoPages';
 
 import ResidentLayout      from '@/components/layout/ResidentLayout';
 import ResidentDashboard   from '@/pages/resident/ResidentDashboard';
 import ResidentPackages    from '@/pages/resident/ResidentPackages';
 import ResidentVehicles    from '@/pages/resident/ResidentVehicles';
 import ResidentCommonAreas from '@/pages/resident/ResidentCommonAreas';
-import ResidentEvents      from '@/pages/resident/ResidentEvents';
 import ResidentVisitors    from '@/pages/resident/ResidentVisitors';
 
 const App = () => (
@@ -54,6 +49,7 @@ const App = () => (
       <Route path="/admin"               element={<Navigate to="/admin/login" replace />} />
       <Route path="/securityguard/login" element={<SecurityGuardLoginPage />} />
       <Route path="/register"            element={<RegisterPage />} />
+      <Route path="/reset-password"      element={<ResetPasswordPage />} />
 
       {/* ── PORTAL RESIDENTE ── */}
       <Route element={<PrivateRoute roles={['residente', 'propietario']} />}>
@@ -63,7 +59,7 @@ const App = () => (
           <Route path="/residente/paquetes"      element={<ResidentPackages />} />
           <Route path="/residente/vehiculos"     element={<ResidentVehicles />} />
           <Route path="/residente/areas-comunes" element={<ResidentCommonAreas />} />
-          <Route path="/residente/eventos"       element={<ResidentEvents />} />
+          <Route path="/residente/eventos"       element={<EventsPage />} />
         </Route>
       </Route>
 
@@ -90,7 +86,7 @@ const App = () => (
           <Route element={<PrivateRoute roles={['admin', 'residente']} />}>
             <Route path="/vehiculos" element={<VehiclesPage />} />
           </Route>
-          <Route path="/eventos"      element={<EventsPage />} />
+          <Route path="/eventos"    element={<EventsPage />} />
           <Route element={<PrivateRoute roles={['admin']} />}>
             <Route path="/visitantes" element={<VisitorsAdminPage />} />
           </Route>
@@ -103,18 +99,17 @@ const App = () => (
           <Route path="/securityguard/access-logs"        element={<AccessLogsPage />} />
           <Route path="/securityguard/access-logs/active" element={<ActiveVisitorsPage />} />
           <Route path="/securityguard/packages"           element={<SGPackagesPage />} />
-          <Route path="/securityguard/units"              element={<SGUnitsPage />} />
-          <Route path="/securityguard/common-areas"       element={<SGCommonAreasPage />} />
+          <Route path="/securityguard/units"              element={<UnitsPage />} />
+          <Route path="/securityguard/common-areas"       element={<CommonAreasPage />} />
           <Route path="/securityguard/parking"            element={<SGParkingPage />} />
-          <Route path="/securityguard/events"             element={<SGEventsPage />} />
+          <Route path="/securityguard/events"             element={<EventsPage />} />
           <Route path="/securityguard/visitors"           element={<PreAuthorizedVisitors />} />
         </Route>
       </Route>
 
+      <Route path="/securityguard" element={<Navigate to="/securityguard/access-logs" replace />} />
       <Route path="/"  element={<Navigate to="/dashboard" replace />} />
       <Route path="*"  element={<Navigate to="/dashboard" replace />} />
-      {/* Redirect /securityguard root to access-logs */}
-      <Route path="/securityguard" element={<Navigate to="/securityguard/access-logs" replace />} />
 
     </Routes>
   </BrowserRouter>

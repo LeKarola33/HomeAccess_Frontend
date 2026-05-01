@@ -438,7 +438,7 @@ const VehicleDetailModal = ({ vehicle, onClose }) => (
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Puesto de parqueadero</p>
           <p className="text-sm font-medium text-slate-700">
-            {vehicle.parqueadero_id ? `Puesto ${vehicle.parqueadero_id.numero}` : 'Sin puesto asignado'}
+            {vehicle.parqueadero_id ? `Puesto ${vehicle.parqueadero_id.numero || vehicle.parqueadero_id.number}` : 'Sin puesto asignado'}
           </p>
         </div>
         <StatusBadge assigned={Boolean(vehicle.parqueadero_id)} />
@@ -483,7 +483,7 @@ const VehiclesTab = ({ isAdmin }) => {
   useEffect(() => { load(); }, [load]);
 
   const handleUnassign = async (v) => {
-    if (!confirm(`¿Liberar el puesto ${v.parqueadero_id?.numero} del vehículo ${v.placa}?`)) return;
+    if (!confirm(`¿Liberar el puesto ${(v.parqueadero_id?.numero || v.parqueadero_id?.number)} del vehículo ${v.placa}?`)) return;
     try { await unassignSpot(v._id); showToast('Puesto liberado'); load(); }
     catch (err) { showToast(err.message, 'error'); }
   };
@@ -612,7 +612,7 @@ const VehiclesTab = ({ isAdmin }) => {
                 <div className="col-span-2">
                   {v.parqueadero_id
                     ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                        📍 {v.parqueadero_id.numero}
+                        📍 {v.parqueadero_id.numero || v.parqueadero_id.number}
                       </span>
                     : <span className="text-xs text-gray-400">—</span>
                   }
