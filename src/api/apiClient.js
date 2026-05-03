@@ -12,7 +12,8 @@ import { useAuthStore } from '@/store/authStore';
 
 // Crear instancia con configuración base
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  //baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://home-access-b.vercel.app/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
