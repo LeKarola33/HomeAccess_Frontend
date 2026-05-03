@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
 const getToken = () => {
   try {

@@ -23,7 +23,7 @@ const TIPO_COLORS = {
   otro:      'bg-slate-50  text-slate-600  border-slate-200',
 };
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
 const getAuthState = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
 const getToken     = () => getAuthState().accessToken  || null;

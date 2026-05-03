@@ -33,7 +33,7 @@ const ESTADOS = [
 const TIPO_MAP   = Object.fromEntries(TIPOS.map((t) => [t.value, t]));
 const ESTADO_MAP = Object.fromEntries(ESTADOS.map((e) => [e.value, e]));
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
 // ─── Auth + API helpers ───────────────────────────────────────────────────────
 const useAuth = () => {

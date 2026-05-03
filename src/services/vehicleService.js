@@ -12,7 +12,7 @@
  * getVehiclesByUnit(unitId)   GET  /vehicles/unit/:unitId
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
 // ─── Helper: leer token desde homeaccess-auth ─────────────────────────────────
 const getToken = () => {
