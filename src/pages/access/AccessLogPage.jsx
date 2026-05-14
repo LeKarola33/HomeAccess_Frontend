@@ -1,6 +1,6 @@
 /**
  * HomeAccess - Página de Control de Acceso (Portería)
- * =====================================================
+ * ===================================================
  * Permite a los porteros registrar entradas/salidas y ver el historial.
  */
 
