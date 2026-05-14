@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { Building2, CalendarDays, Clock, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { getCommonAreas } from '@/api/resident.api';
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
 
 const getToken = () => {
   try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state?.accessToken || null; }
