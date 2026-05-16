@@ -232,7 +232,7 @@ const AdminLoginPage = () => {
                 <Link to="/login"
                   className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-400 transition-colors">
                   <ArrowLeft size={13} />
-                  Acceso para residentes
+                  Acceso Residentes
                 </Link>
                 <span className="text-slate-700 text-xs">·</span>
                 <Link to="/securityguard/login"
@@ -356,7 +356,7 @@ const AdminLoginPage = () => {
                   style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)', color: '#60a5fa' }}>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    Portal de residentes
+                    Acceso Residentes
                   </div>
                   <span className="opacity-50 group-hover:opacity-100 transition-opacity">→</span>
                 </Link>
