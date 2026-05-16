@@ -197,12 +197,12 @@ const AdminLoginPage = () => {
             Gestión de residentes, unidades, accesos, paquetes y seguridad del conjunto desde un solo lugar.
           </p>
 
-          {/* Roles */}
+          {/* Roles — sin Guarda de Seguridad */}
           <div className="space-y-2 pt-2">
             {[
-              { role: 'Administrador',    desc: 'Acceso completo al sistema',      color: '#818cf8' },
-              { role: 'Portero',          desc: 'Control de acceso y paquetes',    color: '#34d399' },
-              { role: 'Residente',        desc: 'Portal personal del conjunto',    color: '#2563eb' },
+              { role: 'Administrador', desc: 'Acceso completo al sistema',   color: '#818cf8' },
+              { role: 'Portero',       desc: 'Control de acceso y paquetes', color: '#34d399' },
+              { role: 'Residente',     desc: 'Portal personal del conjunto', color: '#2563eb' },
             ].map(({ role, desc, color }) => (
               <div key={role} className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -236,7 +236,10 @@ const AdminLoginPage = () => {
                 </Link>
                 <span className="text-slate-700 text-xs">·</span>
                 <Link to="/securityguard/login"
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-400 transition-colors">
+                  className="inline-flex items-center gap-1.5 text-xs transition-colors"
+                  style={{ color: '#34d399' }}
+                  onMouseOver={e => e.currentTarget.style.opacity = '0.7'}
+                  onMouseOut={e => e.currentTarget.style.opacity = '1'}>
                   <ShieldCheck size={13} />
                   Acceso Portero
                 </Link>
@@ -359,9 +362,9 @@ const AdminLoginPage = () => {
                 </Link>
                 <Link to="/securityguard/login"
                   className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl text-xs font-medium transition-all group"
-                  style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#34d399' }}>
+                  style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399' }}>
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#34d399' }} />
                     Acceso Portero
                   </div>
                   <span className="opacity-50 group-hover:opacity-100 transition-opacity">→</span>
