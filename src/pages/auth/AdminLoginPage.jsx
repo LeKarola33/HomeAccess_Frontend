@@ -238,7 +238,7 @@ const AdminLoginPage = () => {
                 <Link to="/securityguard/login"
                   className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-400 transition-colors">
                   <ShieldCheck size={13} />
-                  Acceso guarda de seguridad
+                  Acceso Portero
                 </Link>
               </div>
             </div>
@@ -362,7 +362,7 @@ const AdminLoginPage = () => {
                   style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Acceso guarda de seguridad
+                    Acceso Portero
                   </div>
                   <span className="opacity-50 group-hover:opacity-100 transition-opacity">→</span>
                 </Link>
