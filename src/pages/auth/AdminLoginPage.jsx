@@ -202,7 +202,6 @@ const AdminLoginPage = () => {
             {[
               { role: 'Administrador',    desc: 'Acceso completo al sistema',      color: '#818cf8' },
               { role: 'Portero',          desc: 'Control de acceso y paquetes',    color: '#34d399' },
-              { role: 'Guarda Seguridad', desc: 'Registro y control de ingresos',  color: '#f59e0b' },
               { role: 'Residente',        desc: 'Portal personal del conjunto',    color: '#2563eb' },
             ].map(({ role, desc, color }) => (
               <div key={role} className="flex items-center gap-3">
