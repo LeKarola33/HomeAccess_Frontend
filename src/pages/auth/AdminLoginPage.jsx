@@ -359,7 +359,7 @@ const AdminLoginPage = () => {
                 </Link>
                 <Link to="/securityguard/login"
                   className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl text-xs font-medium transition-all group"
-                  style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }}>
+                  style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#34d399' }}>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                     Acceso Portero
