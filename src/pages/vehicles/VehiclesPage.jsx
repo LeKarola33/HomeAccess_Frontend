@@ -25,10 +25,16 @@ const TIPO_COLORS = {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
-const getAuthState = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
-const getToken     = () => getAuthState().accessToken  || null;
-const getRefresh   = () => getAuthState().refreshToken || null;
-const useAuth      = () => getAuthState().user         || {};
+export default function VehiclesPage() {
+  // ✅ Usar el store de Zustand (reactivo)
+  const user    = useAuthStore(state => state.user);
+  const isAdmin = user?.role === 'admin';
+  // ...
+}
+//const getAuthState = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
+//const getToken     = () => getAuthState().accessToken  || null;
+//const getRefresh   = () => getAuthState().refreshToken || null;
+//const useAuth      = () => getAuthState().user         || {};
 
 const saveNewToken = (accessToken) => {
   try { const raw = localStorage.getItem('homeaccess-auth'); const store = JSON.parse(raw); store.state.accessToken = accessToken; localStorage.setItem('homeaccess-auth', JSON.stringify(store)); } catch {}
