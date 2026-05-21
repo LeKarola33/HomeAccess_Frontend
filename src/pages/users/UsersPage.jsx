@@ -6,26 +6,27 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUsers, deleteUser } from '@/api/resources.api';
 import apiClient from '@/api/apiClient';
-import { Eye, EyeOff, X, Check, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, X, Check, UserPlus, Plus, Trash2 } from 'lucide-react';
 
 const ROLE_COLORS = {
   admin:       'bg-purple-100 text-purple-700 border border-purple-200',
   propietario: 'bg-blue-100   text-blue-700   border border-blue-200',
   residente:   'bg-emerald-100 text-emerald-700 border border-emerald-200',
   portero:     'bg-amber-100  text-amber-700  border border-amber-200',
-  //vigilante:   'bg-gray-100   text-gray-600   border border-gray-200',
 };
 
-
-
 const ROLES     = ['admin', 'propietario', 'residente', 'portero'];
+const TIPOS_DOC = ['CC', 'CE', 'PAS', 'TI', 'RC'];
 
-const TIPOS_DOC = ['CC', 'CE', 'PAS', 'TI'];
+const EMPTY_NINO    = { nombres: '', fecha_nacimiento: '', tipo_documento: 'TI', documento: '' };
+const EMPTY_MASCOTA = { nombre: '', especie: 'perro', raza: '', color: '' };
 
 const EMPTY_FORM = {
   nombres: '', apellidos: '', cedula: '', tipo_documento: 'CC',
   email: '', celular: '', role: 'residente', password: '', confirmPassword: '',
   unidades: [],
+  ninos:    [],
+  mascotas: [],
 };
 
 const Field = ({ label, error, required, children }) => (
@@ -44,8 +45,8 @@ const inputCls = (err) =>
 
 // ── Selector de unidad ────────────────────────────────────────
 const UnitSelector = ({ value, onChange }) => {
-  const [units, setUnits]       = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [units,   setUnits]   = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     apiClient.get('/units?limit=200&tipo=apartamento')
@@ -61,21 +62,150 @@ const UnitSelector = ({ value, onChange }) => {
   );
 
   return (
-    <select
-      value={value || ''}
-      onChange={e => onChange(e.target.value ? [e.target.value] : [])}
-      className={inputCls(false)}
-    >
+    <select value={value || ''} onChange={e => onChange(e.target.value ? [e.target.value] : [])} className={inputCls(false)}>
       <option value="">— Sin unidad asignada —</option>
       {units.map(u => (
         <option key={u._id} value={u._id}>
           {u.torre ? `Torre ${u.torre} · ` : ''}Apto {u.numero}
-          {u.propietario_actual
-            ? ` — ${u.propietario_actual.nombres} ${u.propietario_actual.apellidos}`
-            : ''}
+          {u.propietario_actual ? ` — ${u.propietario_actual.nombres} ${u.propietario_actual.apellidos}` : ''}
         </option>
       ))}
     </select>
+  );
+};
+
+// ── Sección Niños ─────────────────────────────────────────────
+const NinosSection = ({ ninos, onChange }) => {
+  const add    = () => onChange([...ninos, { ...EMPTY_NINO }]);
+  const remove = (i) => onChange(ninos.filter((_, idx) => idx !== i));
+  const setF   = (i, k, v) => onChange(ninos.map((n, idx) => idx === i ? { ...n, [k]: v } : n));
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+          👶 Niños ({ninos.length})
+        </p>
+        <button type="button" onClick={add}
+          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+          <Plus size={12} /> Agregar niño
+        </button>
+      </div>
+
+      {ninos.length === 0 ? (
+        <div className="text-center py-3 border border-dashed border-gray-200 rounded-xl text-xs text-gray-400">
+          Sin niños registrados — haz clic en "Agregar niño"
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {ninos.map((n, i) => (
+            <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl p-3 relative">
+              <button type="button" onClick={() => remove(i)}
+                className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded-lg text-red-400 hover:text-red-600 transition-colors">
+                <Trash2 size={12} />
+              </button>
+              <p className="text-xs font-medium text-blue-700 mb-2">Niño #{i + 1}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Nombres *</label>
+                  <input className={inputCls(false)} value={n.nombres}
+                    onChange={e => setF(i, 'nombres', e.target.value)}
+                    placeholder="Nombre completo" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Fecha de nacimiento</label>
+                  <input type="date" className={inputCls(false)} value={n.fecha_nacimiento}
+                    onChange={e => setF(i, 'fecha_nacimiento', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Tipo doc.</label>
+                  <select className={inputCls(false)} value={n.tipo_documento}
+                    onChange={e => setF(i, 'tipo_documento', e.target.value)}>
+                    {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Número de doc.</label>
+                  <input className={inputCls(false)} value={n.documento}
+                    onChange={e => setF(i, 'documento', e.target.value)}
+                    placeholder="Opcional" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Sección Mascotas ──────────────────────────────────────────
+const MascotasSection = ({ mascotas, onChange }) => {
+  const add    = () => onChange([...mascotas, { ...EMPTY_MASCOTA }]);
+  const remove = (i) => onChange(mascotas.filter((_, idx) => idx !== i));
+  const setF   = (i, k, v) => onChange(mascotas.map((m, idx) => idx === i ? { ...m, [k]: v } : m));
+
+  const ESPECIES = ['perro', 'gato', 'ave', 'pez', 'conejo', 'reptil', 'otro'];
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+          🐾 Mascotas ({mascotas.length})
+        </p>
+        <button type="button" onClick={add}
+          className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors">
+          <Plus size={12} /> Agregar mascota
+        </button>
+      </div>
+
+      {mascotas.length === 0 ? (
+        <div className="text-center py-3 border border-dashed border-gray-200 rounded-xl text-xs text-gray-400">
+          Sin mascotas registradas — haz clic en "Agregar mascota"
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {mascotas.map((m, i) => (
+            <div key={i} className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative">
+              <button type="button" onClick={() => remove(i)}
+                className="absolute top-2 right-2 p-1 hover:bg-red-100 rounded-lg text-red-400 hover:text-red-600 transition-colors">
+                <Trash2 size={12} />
+              </button>
+              <p className="text-xs font-medium text-emerald-700 mb-2">Mascota #{i + 1}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Nombre *</label>
+                  <input className={inputCls(false)} value={m.nombre}
+                    onChange={e => setF(i, 'nombre', e.target.value)}
+                    placeholder="Ej: Firulais" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Especie</label>
+                  <select className={inputCls(false)} value={m.especie}
+                    onChange={e => setF(i, 'especie', e.target.value)}>
+                    {ESPECIES.map(e => (
+                      <option key={e} value={e} className="capitalize">{e}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Raza</label>
+                  <input className={inputCls(false)} value={m.raza}
+                    onChange={e => setF(i, 'raza', e.target.value)}
+                    placeholder="Ej: Labrador" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Color</label>
+                  <input className={inputCls(false)} value={m.color}
+                    onChange={e => setF(i, 'color', e.target.value)}
+                    placeholder="Ej: Café" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -91,6 +221,7 @@ const UsersPage = () => {
   const [errors,     setErrors]     = useState({});
   const [showPass,   setShowPass]   = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [resTab,     setResTab]     = useState('datos'); // 'datos' | 'ninos' | 'mascotas'
 
   const { data, isLoading } = useQuery({
     queryKey: ['users', page, roleFilter],
@@ -112,7 +243,7 @@ const UsersPage = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); toast('✅ Estado actualizado'); },
   });
 
-  const toast = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000); };
+  const toast   = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000); };
   const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errors[k]) setErrors(e => ({ ...e, [k]: undefined })); };
 
   const validate = (isEdit = false) => {
@@ -131,112 +262,169 @@ const UsersPage = () => {
     return e;
   };
 
-  const openCreate = () => { setForm(EMPTY_FORM); setErrors({}); setShowPass(false); setModal('create'); };
+  const openCreate = () => { setForm(EMPTY_FORM); setErrors({}); setShowPass(false); setResTab('datos'); setModal('create'); };
   const openDetail = (u) => { setSelected(u); setModal('detail'); };
   const openEdit   = (u) => {
     setForm({
       ...EMPTY_FORM, ...u,
       password: '', confirmPassword: '',
       unidades: u.unidades || [],
+      mascotas: u.mascotas || [],
+      ninos: (u.ninos || []).map(n => ({
+        ...n,
+        fecha_nacimiento: n.fecha_nacimiento
+          ? new Date(n.fecha_nacimiento).toISOString().split('T')[0]
+          : '',
+      })),
     });
-    setErrors({}); setShowPass(false); setSelected(u); setModal('edit');
+    setErrors({}); setShowPass(false); setResTab('datos'); setSelected(u); setModal('edit');
   };
   const closeModal = () => { setModal(null); setSelected(null); setErrors({}); };
 
   const handleCreate = () => {
     const e = validate(false);
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) { setErrors(e); setResTab('datos'); return; }
     const { confirmPassword, ...payload } = form;
     createMutation.mutate({ ...payload, password_hash: payload.password });
   };
 
   const handleEdit = () => {
     const e = validate(true);
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) { setErrors(e); setResTab('datos'); return; }
     const { password, confirmPassword, ...payload } = form;
+    console.log('PAYLOAD:', JSON.stringify(payload, null, 2));//
     updateMutation.mutate({ id: selected._id, payload });
   };
 
+  // ── Tabs para residente ───────────────────────────────────────
+  const ResidenteTabs = () => {
+    const tabs = [
+      { id: 'datos',    label: '👤 Datos personales' },
+      { id: 'ninos',    label: `👶 Niños (${form.ninos?.length || 0})` },
+      { id: 'mascotas', label: `🐾 Mascotas (${form.mascotas?.length || 0})` },
+    ];
+    return (
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+        {tabs.map(t => (
+          <button key={t.id} type="button" onClick={() => setResTab(t.id)}
+            className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all
+              ${resTab === t.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   const renderForm = (isEdit = false) => (
-    <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Nombres" required error={errors.nombres}>
-          <input className={inputCls(errors.nombres)} value={form.nombres} onChange={e => setField('nombres', e.target.value)} placeholder="Carlos" />
-        </Field>
-        <Field label="Apellidos" required error={errors.apellidos}>
-          <input className={inputCls(errors.apellidos)} value={form.apellidos} onChange={e => setField('apellidos', e.target.value)} placeholder="Mendoza" />
-        </Field>
-      </div>
+    <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
 
-      <div className="grid grid-cols-3 gap-3">
-        <Field label="Tipo Doc.">
-          <select className={inputCls(false)} value={form.tipo_documento} onChange={e => setField('tipo_documento', e.target.value)}>
-            {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
-          </select>
-        </Field>
-        <div className="col-span-2">
-          <Field label="Número de Documento" required error={errors.cedula}>
-            <input className={inputCls(errors.cedula)} value={form.cedula} onChange={e => setField('cedula', e.target.value)} placeholder="1234567890" />
-          </Field>
-        </div>
-      </div>
+      {/* Tabs solo para residente */}
+      {form.role === 'residente' && <ResidenteTabs />}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Correo electrónico" required error={errors.email}>
-          <input type="email" className={inputCls(errors.email)} value={form.email} onChange={e => setField('email', e.target.value)} placeholder="usuario@mail.com" />
-        </Field>
-        <Field label="Celular">
-          <input className={inputCls(false)} value={form.celular} onChange={e => setField('celular', e.target.value)} placeholder="+57 300 000 0000" />
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Rol en el sistema" required>
-          <select className={inputCls(false)} value={form.role} onChange={e => setField('role', e.target.value)}>
-            {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
-          </select>
-          {form.role === 'admin' && <p className="text-xs text-amber-500 mt-1">⚠ Tendrá acceso total al sistema</p>}
-        </Field>
-
-        {/* ── Selector de unidad desde la BD ── */}
-        {['residente', 'propietario'].includes(form.role) && (
-          <Field label="Unidad / Apartamento">
-            <UnitSelector
-              value={form.unidades?.[0] || ''}
-              onChange={(ids) => setField('unidades', ids)}
-            />
-            <p className="text-xs text-gray-400 mt-1">Apartamento asignado al residente</p>
-          </Field>
-        )}
-      </div>
-
-      {!isEdit && (
+      {/* ── TAB: DATOS PERSONALES (siempre visible si no es residente o está en tab datos) ── */}
+      {(form.role !== 'residente' || resTab === 'datos') && (
         <>
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest mb-3">Acceso al sistema</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nombres" required error={errors.nombres}>
+              <input className={inputCls(errors.nombres)} value={form.nombres}
+                onChange={e => setField('nombres', e.target.value)} placeholder="Carlos" />
+            </Field>
+            <Field label="Apellidos" required error={errors.apellidos}>
+              <input className={inputCls(errors.apellidos)} value={form.apellidos}
+                onChange={e => setField('apellidos', e.target.value)} placeholder="Mendoza" />
+            </Field>
           </div>
-          <Field label="Contraseña" required error={errors.password}>
-            <div className="relative">
-              <input type={showPass ? 'text' : 'password'} className={inputCls(errors.password)}
-                value={form.password} onChange={e => setField('password', e.target.value)}
-                placeholder="Mín. 8 chars, mayúsculas y números" />
-              <button type="button" onClick={() => setShowPass(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Tipo Doc.">
+              <select className={inputCls(false)} value={form.tipo_documento}
+                onChange={e => setField('tipo_documento', e.target.value)}>
+                {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <div className="col-span-2">
+              <Field label="Número de Documento" required error={errors.cedula}>
+                <input className={inputCls(errors.cedula)} value={form.cedula}
+                  onChange={e => setField('cedula', e.target.value)} placeholder="1234567890" />
+              </Field>
             </div>
-          </Field>
-          <Field label="Confirmar Contraseña" required error={errors.confirmPassword}>
-            <input type={showPass ? 'text' : 'password'} className={inputCls(errors.confirmPassword)}
-              value={form.confirmPassword} onChange={e => setField('confirmPassword', e.target.value)}
-              placeholder="Repita la contraseña" />
-          </Field>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-xs text-gray-600 leading-relaxed">
-              <span className="font-bold text-blue-700">Ley 1581 de 2012 — </span>
-              Al crear este usuario, el administrador declara haber obtenido el consentimiento expreso del titular para el tratamiento de sus datos personales.
-            </p>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Correo electrónico" required error={errors.email}>
+              <input type="email" className={inputCls(errors.email)} value={form.email}
+                onChange={e => setField('email', e.target.value)} placeholder="usuario@mail.com" />
+            </Field>
+            <Field label="Celular">
+              <input className={inputCls(false)} value={form.celular}
+                onChange={e => setField('celular', e.target.value)} placeholder="+57 300 000 0000" />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Rol en el sistema" required>
+              <select className={inputCls(false)} value={form.role}
+                onChange={e => { setField('role', e.target.value); setResTab('datos'); }}>
+                {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
+              </select>
+              {form.role === 'admin' && <p className="text-xs text-amber-500 mt-1">⚠ Tendrá acceso total al sistema</p>}
+            </Field>
+
+            {['residente', 'propietario'].includes(form.role) && (
+              <Field label="Unidad / Apartamento">
+                <UnitSelector value={form.unidades?.[0] || ''} onChange={(ids) => setField('unidades', ids)} />
+                <p className="text-xs text-gray-400 mt-1">Apartamento asignado al residente</p>
+              </Field>
+            )}
+          </div>
+
+          {!isEdit && (
+            <>
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest mb-3">Acceso al sistema</p>
+              </div>
+              <Field label="Contraseña" required error={errors.password}>
+                <div className="relative">
+                  <input type={showPass ? 'text' : 'password'} className={inputCls(errors.password)}
+                    value={form.password} onChange={e => setField('password', e.target.value)}
+                    placeholder="Mín. 8 chars, mayúsculas y números" />
+                  <button type="button" onClick={() => setShowPass(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </Field>
+              <Field label="Confirmar Contraseña" required error={errors.confirmPassword}>
+                <input type={showPass ? 'text' : 'password'} className={inputCls(errors.confirmPassword)}
+                  value={form.confirmPassword} onChange={e => setField('confirmPassword', e.target.value)}
+                  placeholder="Repita la contraseña" />
+              </Field>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-bold text-blue-700">Ley 1581 de 2012 — </span>
+                  Al crear este usuario, el administrador declara haber obtenido el consentimiento expreso del titular para el tratamiento de sus datos personales.
+                </p>
+              </div>
+            </>
+          )}
         </>
+      )}
+
+      {/* ── TAB: NIÑOS (solo residente) ── */}
+      {form.role === 'residente' && resTab === 'ninos' && (
+        <NinosSection
+          ninos={form.ninos || []}
+          onChange={(v) => setField('ninos', v)}
+        />
+      )}
+
+      {/* ── TAB: MASCOTAS (solo residente) ── */}
+      {form.role === 'residente' && resTab === 'mascotas' && (
+        <MascotasSection
+          mascotas={form.mascotas || []}
+          onChange={(v) => setField('mascotas', v)}
+        />
       )}
     </div>
   );
@@ -248,7 +436,8 @@ const UsersPage = () => {
           <h2 className="text-xl font-bold text-gray-900">Usuarios</h2>
           <p className="text-sm text-gray-500">Gestión de residentes, propietarios y personal</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <button onClick={openCreate}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           <UserPlus size={16} /> Nuevo Usuario
         </button>
       </div>
@@ -260,7 +449,8 @@ const UsersPage = () => {
       <div className="flex gap-2 flex-wrap">
         {['', ...ROLES].map((r) => (
           <button key={r} onClick={() => { setRoleFilter(r); setPage(1); }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors ${roleFilter === r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors
+              ${roleFilter === r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
             {r || 'Todos'}
           </button>
         ))}
@@ -334,7 +524,10 @@ const UsersPage = () => {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b bg-gray-50">
-              <div><h3 className="font-bold text-gray-900">Nuevo Usuario</h3><p className="text-xs text-gray-500 mt-0.5">Complete todos los campos obligatorios</p></div>
+              <div>
+                <h3 className="font-bold text-gray-900">Nuevo Usuario</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Complete todos los campos obligatorios</p>
+              </div>
               <button onClick={closeModal} className="p-1.5 hover:bg-gray-200 rounded-lg"><X size={16} /></button>
             </div>
             {renderForm(false)}
@@ -342,7 +535,9 @@ const UsersPage = () => {
               <button onClick={closeModal} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-100">Cancelar</button>
               <button onClick={handleCreate} disabled={createMutation.isPending}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2">
-                {createMutation.isPending ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creando...</> : <><UserPlus size={15} />Crear Usuario</>}
+                {createMutation.isPending
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creando...</>
+                  : <><UserPlus size={15} />Crear Usuario</>}
               </button>
             </div>
           </div>
@@ -381,6 +576,28 @@ const UsersPage = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Niños y mascotas en detalle */}
+              {selected.role === 'residente' && (
+                <div className="space-y-3">
+                  {selected.ninos?.length > 0 && (
+                    <div className="bg-blue-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-blue-700 mb-2">👶 Niños ({selected.ninos.length})</p>
+                      {selected.ninos.map((n, i) => (
+                        <p key={i} className="text-xs text-gray-600">{n.nombres}{n.fecha_nacimiento ? ` · ${new Date(n.fecha_nacimiento).toLocaleDateString('es-CO')}` : ''}</p>
+                      ))}
+                    </div>
+                  )}
+                  {selected.mascotas?.length > 0 && (
+                    <div className="bg-emerald-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-emerald-700 mb-2">🐾 Mascotas ({selected.mascotas.length})</p>
+                      {selected.mascotas.map((m, i) => (
+                        <p key={i} className="text-xs text-gray-600">{m.nombre} · {m.especie}{m.raza ? ` · ${m.raza}` : ''}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex gap-2 px-5 py-4 border-t">
               <button onClick={() => openEdit(selected)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium">✏ Editar</button>
@@ -395,7 +612,10 @@ const UsersPage = () => {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b bg-gray-50">
-              <div><h3 className="font-bold text-gray-900">Editar Usuario</h3><p className="text-xs text-gray-500">{selected.nombres} {selected.apellidos}</p></div>
+              <div>
+                <h3 className="font-bold text-gray-900">Editar Usuario</h3>
+                <p className="text-xs text-gray-500">{selected.nombres} {selected.apellidos}</p>
+              </div>
               <button onClick={closeModal} className="p-1.5 hover:bg-gray-200 rounded-lg"><X size={16} /></button>
             </div>
             {renderForm(true)}
@@ -403,7 +623,9 @@ const UsersPage = () => {
               <button onClick={closeModal} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-100">Cancelar</button>
               <button onClick={handleEdit} disabled={updateMutation.isPending}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2">
-                {updateMutation.isPending ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</> : <><Check size={15} />Guardar Cambios</>}
+                {updateMutation.isPending
+                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
+                  : <><Check size={15} />Guardar Cambios</>}
               </button>
             </div>
           </div>
