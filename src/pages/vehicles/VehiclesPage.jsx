@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuthStore } from '../../store/authStore';
 
 const TIPOS = [
   { value: 'carro',     label: 'Carro',     icon: '🚗', needsPlate: true  },
@@ -25,16 +26,9 @@ const TIPO_COLORS = {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://home-access-b.vercel.app/api/v1';
 
-export default function VehiclesPage() {
-  // ✅ Usar el store de Zustand (reactivo)
-  const user    = useAuthStore(state => state.user);
-  const isAdmin = user?.role === 'admin';
-  // ...
-}
-//const getAuthState = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
-//const getToken     = () => getAuthState().accessToken  || null;
-//const getRefresh   = () => getAuthState().refreshToken || null;
-//const useAuth      = () => getAuthState().user         || {};
+const getAuthState = () => { try { return JSON.parse(localStorage.getItem('homeaccess-auth'))?.state || {}; } catch { return {}; } };
+const getToken     = () => getAuthState().accessToken  || null;
+const getRefresh   = () => getAuthState().refreshToken || null;
 
 const saveNewToken = (accessToken) => {
   try { const raw = localStorage.getItem('homeaccess-auth'); const store = JSON.parse(raw); store.state.accessToken = accessToken; localStorage.setItem('homeaccess-auth', JSON.stringify(store)); } catch {}
@@ -109,7 +103,6 @@ const ParkingSpotSelector = ({ value, onChange, currentVehicleId }) => {
     </div>
   );
 
-  // El controller adapta: numero = number, estado = status mapeado
   const available = spots.filter(s => {
     const estado = s.estado || s.status;
     return estado === 'desocupado' || estado === 'available' || s._id === value;
@@ -160,7 +153,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
   const tipoConfig = TIPO_MAP[form.tipo] || TIPO_MAP.carro;
   const needsPlate = tipoConfig.needsPlate;
 
-  // Cargar unidades al abrir
   useEffect(() => {
     api('/units?limit=200&tipo=apartamento')
       .then((r) => setUnits(r.data || []))
@@ -168,7 +160,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
       .finally(() => setLoadingUnits(false));
   }, []);
 
-  // Cargar residentes cuando cambia la unidad seleccionada
   useEffect(() => {
     if (!form.unit_id) { setResidents([]); if (!isEdit) set('propietario_id', ''); return; }
     setLoadingRes(true);
@@ -179,7 +170,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
         if (u.propietario_actual) lista.push(u.propietario_actual);
         (u.residentes || []).forEach((res) => { if (!lista.find((x) => x._id === res._id)) lista.push(res); });
         setResidents(lista);
-        // Al crear: si solo hay 1 residente, preseleccionarlo
         if (!isEdit && lista.length === 1) set('propietario_id', lista[0]._id);
       })
       .catch(() => setResidents([]))
@@ -209,17 +199,12 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
 
       if (isEdit) {
         await api(`/vehicles/${vehicle._id}`, { method: 'PUT', body: JSON.stringify(payload) });
-
-        // Manejar asignación/liberación de puesto
         const prevSpot = vehicle?.parqueadero_id?._id || vehicle?.parqueadero_id || '';
         const newSpot  = form.parqueadero_id || '';
-
         if (newSpot !== prevSpot) {
-          // Si tenía puesto anterior, liberarlo primero
           if (prevSpot) {
             await api(`/parking/vehicles/${vehicle._id}/unassign`, { method: 'PATCH' });
           }
-          // Si seleccionó un nuevo puesto, asignarlo
           if (newSpot) {
             await api(`/parking/vehicles/${vehicle._id}/assign`, {
               method: 'PATCH',
@@ -229,7 +214,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
         }
       } else {
         const created = await api('/vehicles', { method: 'POST', body: JSON.stringify(payload) });
-        // Si se seleccionó un puesto, asignarlo al vehículo recién creado
         const vehicleId = created?.data?._id;
         if (form.parqueadero_id && vehicleId) {
           await api(`/parking/vehicles/${vehicleId}/assign`, {
@@ -257,7 +241,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
           </div>
         )}
 
-        {/* Tipo */}
         <div>
           <label className={lbl}>Tipo de vehículo *</label>
           <div className="grid grid-cols-5 gap-1.5">
@@ -272,7 +255,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
           {!needsPlate && <p className="text-xs text-slate-400 mt-2">ℹ️ {tipoConfig.label} no requiere placa en Colombia</p>}
         </div>
 
-        {/* Placa */}
         <div>
           <label className={lbl}>Placa {needsPlate ? '*' : <span className="normal-case font-normal text-slate-400">(opcional)</span>}</label>
           <input value={form.placa} onChange={(e) => set('placa', e.target.value.toUpperCase())}
@@ -281,25 +263,21 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
           {isEdit && <p className="text-xs text-slate-400 mt-1">La placa no se puede modificar</p>}
         </div>
 
-        {/* Marca y Modelo */}
         <div className="grid grid-cols-2 gap-4">
           <div><label className={lbl}>Marca</label><input value={form.marca} onChange={(e) => set('marca', e.target.value)} placeholder="Ej: Chevrolet" className={inp} /></div>
           <div><label className={lbl}>Modelo</label><input value={form.modelo} onChange={(e) => set('modelo', e.target.value)} placeholder="Ej: Spark GT" className={inp} /></div>
         </div>
 
-        {/* Color y Año */}
         <div className="grid grid-cols-2 gap-4">
           <div><label className={lbl}>Color</label><input value={form.color} onChange={(e) => set('color', e.target.value)} placeholder="Ej: Rojo" className={inp} /></div>
           <div><label className={lbl}>Año</label><input type="number" value={form.anio} onChange={(e) => set('anio', e.target.value)} placeholder={String(new Date().getFullYear())} min="1970" max={new Date().getFullYear() + 1} className={inp} /></div>
         </div>
 
-        {/* ── Asignación — visible SIEMPRE (crear y editar) ── */}
         <div className="p-4 bg-slate-50 rounded-xl space-y-4 border border-slate-100">
           <p className="text-xs font-bold text-[#1a2035] uppercase tracking-wide">
             📍 Asignación {isEdit ? <span className="normal-case font-normal text-slate-400 ml-1">(puedes cambiar unidad y puesto)</span> : '*'}
           </p>
 
-          {/* Unidad */}
           <div>
             <label className={lbl}>Unidad / Apartamento *</label>
             {loadingUnits ? (
@@ -319,7 +297,6 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
             )}
           </div>
 
-          {/* Propietario */}
           <div>
             <label className={lbl}>Propietario / Residente *</label>
             {!form.unit_id ? (
@@ -339,7 +316,7 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
               </select>
             )}
           </div>
-          {/* Puesto de parqueadero — visible siempre */}
+
           <div>
             <label className={lbl}>Puesto de parqueadero</label>
             <ParkingSpotSelector
@@ -347,13 +324,10 @@ const VehicleFormModal = ({ vehicle, onClose, onSaved }) => {
               onChange={(val) => set('parqueadero_id', val)}
               currentVehicleId={vehicle?._id}
             />
-            <p className="text-xs text-slate-400 mt-1">
-              Opcional — puedes asignar el puesto ahora o después
-            </p>
+            <p className="text-xs text-slate-400 mt-1">Opcional — puedes asignar el puesto ahora o después</p>
           </div>
         </div>
 
-        {/* Botones */}
         <div className="flex gap-3 pt-1">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition-colors">Cancelar</button>
           <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
@@ -452,7 +426,7 @@ const VehicleRow = ({ v, isAdmin, onEdit, onDelete, idx }) => {
 
 // ─── VehiclesPage ─────────────────────────────────────────────
 export default function VehiclesPage() {
-  const user    = useAuth();
+  const user    = useAuthStore(state => state.user);
   const isAdmin = user?.role === 'admin';
 
   const [vehicles,    setVehicles]    = useState([]);
